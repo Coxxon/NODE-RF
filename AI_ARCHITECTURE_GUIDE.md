@@ -56,12 +56,34 @@ This document defines the structural rules and module boundaries for the **NODE 
 | **New Right-Click option** | `src/ui/PopupManager.js` | Update `openEventContextMenu`. |
 | **Add a shortcut or global handler** | `src/main.js` | Add an event listener to the gateway. |
 | **Update IPC/Electron logic** | `preload.cjs` | Expose new `webUtils` or `ipcRenderer` functions. |
+| **Export a Setup.exe** | `package.json` | Run `npm run build:installer` (Config: `nsis`). |
 
 ---
 
-## 5. Circular Dependency Prevention (CRITICAL)
+## 5. UX Performance & Final Polish (V1.2)
+
+### **Data-Driven Keyboard Navigation**
+1. **Zero DOM Reference**: Keyboard shortcuts (`Ctrl + 1`, etc.) must **NEVER** use `querySelectorAll` or DOM order to find targets. They are strictly mapped by mapping physical keys (`e.code`) to `Store` indices (`pages[digit - 2]`).
+2. **Direct Callbacks**: Shortcuts should trigger the underlying logic (`switchView(id)`) directly via stored function references in `TabManager`, bypassing UI event simulations where possible.
+
+### **Live Visual Feedback**
+- For high-frequency interactive updates (e.g., Color Picker), use **Direct Style Injection** (`element.style.borderColor = ...`) rather than a full `renderPageCanvas()` to ensure sub-millisecond responsiveness.
+
+### **Template & Quick-Access UI**
+- **Full-Card Render**: The `TemplateDrawer.buildTemplatePreview(tpl)` method must be used whenever a template needs a visual representation (drawer, hover popovers). It creates a "Source of Truth" card (Header + Wireframe).
+- **Popover Behavior**: Quick-access previews must use `var(--bg-surface)` (opaque) and dynamic width calculation to support different template dimensions (Standard vs Zone RF).
+
+---
+
+## 6. Circular Dependency Prevention (CRITICAL)
 If `Module A` needs `Module B` and vice-versa:
 1. **Move shared code** to `src/core/Constants.js` or `src/core/RFUtils.js`.
 2. **Move common logic** to `Store.js`.
 3. **Use the EventHub** to trigger actions instead of importing the controller.
 4. **Pass function references** as parameters (callbacks) instead of importing them.
+
+---
+
+## 7. Distribution & Infrastructure
+- **Windows Installer**: Use `electron-builder` with an `nsis` target. Confirmed versioning and `appId` are set in `package.json`.
+- **GitHub Backup**: Always confirm that `release-builds/` and binary artifacts are excluded from history via `.gitignore` to avoid the 100MB file size limit. Reset history if necessary before pushing a fresh backup.
