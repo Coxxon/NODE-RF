@@ -228,7 +228,11 @@ export const TemplateDrawer = {
   async refreshQuickAccess() {
     let templates = [];
     if (window.templateAPI) {
-      try { templates = await window.templateAPI.getTemplates(); } catch(e){}
+      try { 
+        templates = await window.templateAPI.getTemplates(); 
+        // Synchronize the memory Store so it's ready for sync-renders
+        Store.setTemplates(templates);
+      } catch(e){}
     } else {
       templates = Store.getTemplates();
     }

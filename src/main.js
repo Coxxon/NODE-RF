@@ -1254,7 +1254,7 @@ if (isRestoreEnabled() && localStorage.getItem('node_rf_autosave')) {
 updateRestoreToggleUI();
 
 // Initialize Assignment Tracker
-initAssignments();
+initAssignments().catch(err => console.error("Failed to initialize assignments:", err));
 
 // Ensure UI state matches shared state
 applyEditMode();
