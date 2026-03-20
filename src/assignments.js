@@ -188,8 +188,8 @@ if (btnAddPage) {
 
 // ─── Render Wrapping ─────────────────────────────────────────────────────────
 
-export function renderPageCanvas() {
-  LayoutEngine.renderPageCanvas(pageCanvas, {
+export async function renderPageCanvas() {
+  await LayoutEngine.renderPageCanvas(pageCanvas, {
     saveAssignments,
     createEvent,
     deleteEvent,

@@ -23,7 +23,7 @@ export const LayoutEngine = {
   /**
    * Renders the entire page canvas.
    */
-  renderPageCanvas(pageCanvas, callbacks) {
+  async renderPageCanvas(pageCanvas, callbacks) {
     if (!pageCanvas) return;
     pageCanvas.innerHTML = '';
     
@@ -67,6 +67,10 @@ export const LayoutEngine = {
     pageCanvas.appendChild(addSplit);
 
     ConflictManager.checkConflicts();
+    
+    // Mission: Synchronized Lifecycle
+    // Await the update and reveal of ALL Split Buttons once they are in the DOM
+    await TemplateDrawer.refreshQuickAccess();
   },
 
   /**
@@ -146,8 +150,6 @@ export const LayoutEngine = {
     });
 
     wrapper.append(mainBtn, quickContainer, chevronBtn);
-
-    setTimeout(() => TemplateDrawer.refreshQuickAccess(), 50);
 
     return wrapper;
   },
