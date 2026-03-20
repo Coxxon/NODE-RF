@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NODE | RF Coordination</title>
+    <link rel="stylesheet" href="/src/style.css">
+    <link rel="stylesheet" href="/src/ui/blocks/InternalBlockStyles.css">
+  </head>
+  <body data-theme="dark" spellcheck="false">
+    <!-- Print Manager Modal (replaces infoOverlay) -->
+    <div id="printManagerOverlay" class="info-overlay">
+      <div class="info-modal print-manager-modal">
+        <div class="modal-header">
+          <h3>Export Report (PDF)</h3>
+          <button class="btn icon-btn close-modal" id="btnClosePrintManager">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        
+        <p class="info-desc">This information will appear in the header of your PDF export.</p>
+        
+        <div class="info-grid">
+          <div class="info-group">
+            <label for="infoOpName">Operation Name</label>
+            <input type="text" id="infoOpName" placeholder="...">
+          </div>
+          <div class="info-group">
+            <label for="infoOpDate">Operation Date</label>
+            <input type="text" id="infoOpDate" placeholder="...">
+          </div>
+          <div class="info-group">
+            <label for="infoAuthor">Author / Coordinator</label>
+            <input type="text" id="infoAuthor" placeholder="...">
+          </div>
+          <div class="info-group">
+            <label for="infoEmail">Contact Email</label>
+            <input type="text" id="infoEmail" placeholder="...">
+          </div>
+        </div>
+
+        <hr class="modal-divider">
+
+        <h4 class="section-subtitle">Zone Order &amp; Pagination</h4>
+        <p class="info-desc mb-2">Drag &amp; drop to reorder. Check "Page break" to force a new page after the zone.</p>
+        
+        <ul id="printZoneList" class="print-zone-list">
+          <!-- Populated by JS -->
+        </ul>
+        
+        <hr class="modal-divider">
+
+        <h4 class="section-subtitle">Export Options</h4>
+
+        <div class="export-options">
+          <div class="export-option-group">
+            <span class="export-option-label">Columns to include</span>
+            <div class="export-checkboxes">
+              <label class="export-check-item">
+                <input type="checkbox" id="cbExportName" checked>
+                <span>Name</span>
+              </label>
+              <label class="export-check-item">
+                <input type="checkbox" id="cbExportNotes" checked>
+                <span>Notes</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="export-option-group">
+            <span class="export-option-label">Status display</span>
+            <label class="export-check-item export-mode-toggle">
+              <input type="checkbox" id="cbExportClean" checked>
+              <div>
+                <span>Clean export</span>
+                <span class="export-option-hint">Ignore alerts, mutes and backup assignments</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="info-actions mt-4">
+          <button class="btn primary" id="btnGeneratePdf">Export PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Print Only Header/Footer -->
+    <div class="print-header">
+      <div class="ph-left">Coordination RF</div>
+      <div class="ph-center">
+        <div id="printOpName" class="p-title"></div>
+        <div id="printOpDate" class="p-subtitle"></div>
+      </div>
+      <div class="ph-right">
+        <div id="printAuthor" class="p-author"></div>
+        <div id="printEmail" class="p-email"></div>
+      </div>
+    </div>
+
+    <div class="print-footer">
+      <div class="pf-left" id="printCreationDate"></div>
+      <div class="pf-right"><span class="page-num"></span></div>
+    </div>
+
+    <!-- Top Toolbar (Hidden on Print) -->
+    <header id="toolbar" class="toolbar">
+      <div class="toolbar-section">
+        <h1 class="logo">NODE<span class="logo-sub">RF</span></h1>
+        
+        <div class="menu-wrapper">
+          <div class="dropdown">
+            <button class="btn outline" id="btnFileMenu">
+              File
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div id="fileDropdown" class="dropdown-content">
+              <button class="dropdown-item" id="btnMenuNewSession" style="color:var(--primary); font-weight:700;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+                New Session
+              </button>
+              <hr class="dropdown-divider">
+              <button class="dropdown-item" id="btnMenuLoadCsv">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Load CSV
+              </button>
+              <button class="dropdown-item" id="btnMenuSaveSession">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Save Session
+              </button>
+              <button class="dropdown-item" id="btnMenuLoadSession">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Load Session
+              </button>
+              <button class="dropdown-item" id="btnMenuRestoreToggle">
+                <svg class="restore-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity:0;transition:opacity 0.2s"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Restore last session on startup
+              </button>
+              <hr class="dropdown-divider">
+              <button class="dropdown-item" id="btnMenuExportPdf">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-up"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg>
+                Export Report (PDF)
+              </button>
+            </div>
+          </div>
+          <input type="file" id="csvFileInput" accept=".csv" style="display: none;" />
+          <input type="file" id="sessionFileInput" accept=".json" style="display: none;" />
+          <span id="fileNameDisplay" class="file-name">No file selected</span>
+        </div>
+      </div>
+
+      <div class="toolbar-section center">
+        <div class="search-box" id="searchBoxContainer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="searchInput" placeholder="Search frequency, name, zone..." />
+        </div>
+        <button class="btn toolbar-zone-btn" id="btnPageZone" style="display: none;">Select Zone</button>
+      </div>
+
+      <div class="toolbar-section right-align">
+        <button class="btn outline icon-only" id="btnOpenMinimap" title="Layout">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-align-justify"><path d="M3 12h18"/><path d="M3 18h18"/><path d="M3 6h18"/></svg>
+        </button>
+
+        <button class="btn outline" id="btnToggleEdit" title="Toggle Edit Mode">Edit</button>
+
+        <button class="btn outline icon-only" id="btnGlobalLock" title="Lock/Unlock Editing">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock-open lock-open-icon"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock lock-icon" style="display:none;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+
+        <button class="btn outline icon-only" id="btnToggleExpand" title="Expand/Collapse All">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevrons-down-up"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>
+        </button>
+
+        <button class="btn outline icon-only" id="btnThemeToggle" title="Toggle Theme">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun theme-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon theme-moon"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+        </button>
+
+        <button class="btn outline icon-only" id="btnPrint" title="Print Manager">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-up"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Tab Bar -->
+    <nav id="viewTabBar" class="view-tab-bar">
+      <button class="view-tab active" data-view="inventory" id="tabInventory">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-list"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7"/><path d="M14 9h7"/><path d="M14 15h7"/><path d="M14 20h7"/></svg>
+        Inventory
+      </button>
+      <div class="tab-divider"></div>
+      <div id="pagesTabGroup" class="pages-tab-group"></div>
+      <button class="view-tab tab-add" id="btnAddPage" title="New page">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+    </nav>
+
+    <!-- Layout Bubble Menu -->
+    <aside id="editMinimap" class="layout-bubble">
+      <div class="minimap-header">
+        <div class="mh-title"><h3>Layout</h3></div>
+      </div>
+      <ul id="minimapZoneList" class="minimap-list"></ul>
+    </aside>
+
+
+    <!-- Main Content Area -->
+    <main id="app-content">
+      <div id="dragDropOverlay" class="drag-drop-overlay">
+        <div class="drag-drop-box">
+          <h2>Drag and drop WWB6 CSV here</h2>
+        </div>
+      </div>
+
+      <!-- Inventory View (existing) -->
+      <div id="inventoryView" class="app-view active">
+        <div id="reportContainer" class="report-container"></div>
+      </div>
+
+      <!-- Assignment Pages View -->
+      <div id="assignmentView" class="app-view">
+        <div id="pageCanvas" class="page-canvas"></div>
+      </div>
+    </main>
+
+
+
+    <!-- Restore Error Modal -->
+    <div id="restoreErrorOverlay" class="info-overlay">
+      <div class="info-modal" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>Session File Not Found</h3>
+          <button class="btn icon-btn close-modal" id="btnCloseRestoreError">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <p id="restoreErrorMsg" class="info-desc" style="white-space:pre-wrap;margin-top:12px;"></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

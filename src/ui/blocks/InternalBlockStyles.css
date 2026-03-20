@@ -1,0 +1,404 @@
+/* InternalBlockStyles.css — Premium styling for block contents */
+
+.block-body {
+  padding: 8px 10px;
+}
+
+/* Assignment row specific grid */
+.assignment-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 8px !important;
+  padding: 0 8px !important; /* Zero vertical padding for absolute flex-centering */
+  align-items: center !important;
+  min-height: 32px !important; /* Define row height instead of padding */
+}
+
+/* Base reset for data elements (EXCEPT the ALERT badge) */
+.block-row > *:not(.line-conflict-indicator) {
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  height: 28px !important; 
+  display: flex !important;
+  /* Removed align-items: center !important; to allow component-specific horizontal alignment */
+  font-size: 0.8rem !important;
+  border: 1px solid transparent !important;
+  padding: 0 4px !important;
+  line-height: 28px !important; 
+  vertical-align: middle !important;
+}
+
+.block-row {
+  padding-left: 18px !important; /* Spacing for the vertical ALERT badge */
+  align-items: center !important;
+  min-height: 32px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.block-field {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+  outline: none;
+  transition: all 0.2s ease;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  line-height: 1.2; 
+  align-items: center !important; /* Vertical centering for text input */
+}
+
+.block-field:focus {
+  background: transparent; /* No background on focus as requested */
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.block-field:hover {
+  background: transparent !important; /* No background on hover as requested */
+}
+
+.block-field::placeholder {
+  color: var(--text-muted);
+  opacity: 0.3;
+}
+
+/* Link RF Badge */
+.rf-link-badge {
+  /* Inherits height/centering from .block-row > * */
+  flex-direction: column;
+  align-items: flex-start !important; /* Text lines aligned GAUCHE */
+  justify-content: center !important; /* Block of text centered VERTICALEMENT */
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  font-family: inherit;
+  font-weight: 400;
+  text-align: left !important;
+}
+
+.rf-link-badge:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.rf-link-badge.unlinked {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 400 !important;
+  text-transform: none;
+  opacity: 0.3;
+  /* Use flex-start to match link position, but justify-content: center (inherited) stays */
+}
+
+.rf-freq-line {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 0.9 !important;
+  text-align: left !important;
+  width: 100% !important; /* Ensure it takes full width to allow left-alignment */
+  margin: 0 !important;
+}
+
+.rf-name-line {
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: var(--primary);
+  opacity: 0.7;
+  line-height: 0.9 !important; /* Tightened line height */
+  text-align: left !important;
+  margin-top: 1px !important; /* Very small gap */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Section Title Block - NEW SeparatorShell look */
+.block-separator {
+  background: var(--section-contrast) !important;
+  border-top: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  margin: 0 -10px !important; /* Zero vertical margin, relying on 10px container gap */
+  padding: 4px 14px !important;
+}
+
+/* Close the gap between consecutive section titles or at event boundaries */
+.block-separator + .block-separator {
+  margin-top: -10px !important; /* Cancels container gap to make them touch */
+  border-top: none !important; /* Single border between them */
+}
+
+/* Remove space at the top/bottom boundaries of the event body */
+.block-separator:first-child {
+  margin-top: -10px !important; /* Directly touch the event header */
+  border-top: none !important;
+}
+
+.block-separator:last-child {
+  margin-bottom: -10px !important; /* Directly touch the event footer area */
+}
+
+.block-separator .data-block-header {
+  background: transparent !important;
+  border-bottom: none !important; /* Header border removed in favor of the full band */
+  padding: 0 !important;
+  margin-bottom: 0 !important;
+  gap: 12px !important;
+}
+
+.block-separator .header-title-input {
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-main);
+  padding: 4px 0 !important;
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+}
+
+.block-separator .block-body {
+  display: none !important;
+}
+
+.data-block-header {
+  background: var(--header-contrast) !important; /* More subtle than section title bands */
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Hover-only interaction buttons */
+.block-drag-handle, 
+.block-resizer-btn, 
+.data-block-remove,
+.header-add-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease, background 0.2s ease !important;
+}
+
+.block-drag-handle::after {
+  content: '';
+  width: 32px;
+  height: 2px;
+  background: var(--text-muted);
+  border-radius: 4px;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease, opacity 0.2s ease;
+  opacity: 0.4;
+}
+
+.data-block:hover .block-drag-handle::after {
+  background: var(--text-muted);
+}
+
+.block-drag-handle:hover::after {
+  width: 48px;
+  background: var(--primary) !important;
+  opacity: 1;
+}
+
+.data-block:hover .block-drag-handle,
+.data-block:hover .block-resizer-btn,
+.data-block:hover .data-block-remove,
+.data-block:hover .header-add-btn {
+  opacity: 0.4;
+}
+
+.block-drag-handle:hover {
+  opacity: 1 !important;
+}
+
+.data-block:hover .data-block-remove:hover {
+  opacity: 1;
+  color: var(--danger) !important;
+}
+
+/* Contact Specific */
+.contact-row {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  align-items: center !important;
+  min-height: 32px !important;
+  padding: 0 8px !important;
+}
+
+/* Checklist Specific */
+.block-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+}
+
+.checklist-item input[type="checkbox"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+  transform: scale(0.9);
+}
+
+.checklist-item-label {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.checklist-item-label.done {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* Utility buttons */
+.btn-row-del, .checklist-item-del {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.block-row:hover .btn-row-del,
+.checklist-item:hover .checklist-item-del {
+  opacity: 0.4;
+}
+
+.btn-row-del:hover, .checklist-item-del:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+/* File Block Styles - Harmonized with list blocks */
+.file-row {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 0 8px !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  transition: all 0.2s ease;
+  min-height: 32px !important; /* Match .assignment-row min-height */
+  justify-content: center !important;
+}
+
+.file-row:last-child {
+  border-bottom: none !important;
+}
+
+.file-row:hover {
+  background: var(--row-hover) !important; /* Perfect match with list rows */
+}
+
+.file-line {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  height: 32px !important;
+}
+
+.file-name-link {
+  flex: 1 !important; /* Occupy remaining space */
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-main);
+  transition: color 0.1s;
+  display: block !important;
+  line-height: normal !important;
+}
+
+.file-rename-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--primary);
+  color: var(--text-main);
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  outline: none;
+  font-family: inherit;
+}
+
+.file-row-actions {
+  display: flex !important;
+  gap: 4px !important;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.file-row:hover .file-row-actions {
+  opacity: 0.6;
+}
+
+.file-row-actions button:hover {
+  opacity: 1 !important;
+}
+
+.file-expand-btn {
+  background: none;
+  border: none;
+  padding: 0 !important;
+  width: 14px !important;
+  height: 14px !important;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: all 0.2s;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-expand-btn:hover {
+  opacity: 1;
+  color: var(--primary);
+}
+
+.file-preview-area {
+  margin: 8px 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+}
+
+.file-preview-img {
+  max-width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+}
+
+.file-preview-pdf {
+  width: 100%;
+  height: 500px;
+  border: none;
+  display: block;
+}
