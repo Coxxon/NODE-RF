@@ -228,26 +228,12 @@ export const TemplateDrawer = {
   async refreshQuickAccess() {
     let templates = [];
     if (window.templateAPI) {
-      try { 
-        templates = await window.templateAPI.getTemplates(); 
-        // Synchronize the memory Store so it's ready for sync-renders
-        Store.setTemplates(templates);
-      } catch(e){}
+      try { templates = await window.templateAPI.getTemplates(); } catch(e){}
     } else {
       templates = Store.getTemplates();
     }
-    this.refreshQuickAccessSync(document, templates);
-  },
-
-  /**
-   * Synchronously populates Quick Access buttons using provided or stored templates.
-   * @param {HTMLElement|Document} root - Scoped search for buttons.
-   * @param {Array} manualTemplates - Optional templates array to use.
-   */
-  refreshQuickAccessSync(root = document, manualTemplates = null) {
-    const templates = manualTemplates || Store.getTemplates();
-    const btns = root.querySelectorAll('.btn-split-add__quick');
     
+    const btns = document.querySelectorAll('.btn-split-add__quick');
     btns.forEach((btn) => {
       const idx = parseInt(btn.dataset.index, 10);
       const tpl = templates[idx];
@@ -261,6 +247,9 @@ export const TemplateDrawer = {
         btn.__templateData = null;
       }
     });
+
+    // Reveal the button group once numbers are ready
+    document.querySelectorAll('.btn-split-add').forEach(el => el.classList.add('is-ready'));
   }
 };
 

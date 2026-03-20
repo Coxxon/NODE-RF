@@ -344,14 +344,8 @@ function saveAsTemplate(evt) {
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
-export async function initAssignments() {
+export function initAssignments() {
   loadAssignments();
-  
-  // Warm up the Store with templates from the disk before the first render
-  if (typeof TemplateDrawer !== 'undefined' && TemplateDrawer.refreshQuickAccess) {
-    try { await TemplateDrawer.refreshQuickAccess(); } catch(e){}
-  }
-
   renderPageTabs();
   const restoreOn = localStorage.getItem('node_rf_restore_on_startup') === 'true';
   const lastView = Store.getLastView();

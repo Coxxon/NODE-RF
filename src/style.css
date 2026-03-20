@@ -846,7 +846,13 @@ body.edit-mode #btnOpenMinimap {
   display: flex; align-items: stretch;
   border-radius: 10px; overflow: hidden;
   border: 1.5px dashed var(--border);
-  transition: border-color 0.2s;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out, border-color 0.2s;
+}
+.btn-split-add.is-ready {
+  opacity: 1;
+  pointer-events: auto;
 }
 .btn-split-add:hover { border-color: var(--primary); }
 .btn-split-add__main {
