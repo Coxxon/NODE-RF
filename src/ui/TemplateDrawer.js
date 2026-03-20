@@ -225,42 +225,80 @@ export const TemplateDrawer = {
     return wireframe;
   },
 
-  async refreshQuickAccess(container = document) {
+  /**
+   * Targets all .quick-access-container in the DOM and populates them
+   * with buttons for the first 3 templates.
+   */
+  async populateQuickAccess() {
     let templates = [];
     if (window.templateAPI) {
       try { 
-        // Force explicit await for the real data from backend
         templates = await window.templateAPI.getTemplates(); 
       } catch(e) { 
-        console.warn('refreshQuickAccess: API fetch failed, falling back to Store', e);
         templates = Store.getTemplates(); 
       }
     } else {
       templates = Store.getTemplates();
     }
     
-    // Ensure we always have an array even on error/empty
     if (!Array.isArray(templates)) templates = [];
 
-    const btns = container.querySelectorAll('.btn-split-add__quick');
-    btns.forEach((btn) => {
-      const idx = parseInt(btn.dataset.index, 10);
-      const tpl = templates[idx];
-      
-      // Strictly force display state based on data existence
-      if (tpl) {
-        btn.style.display = 'flex';
-        btn.title = tpl.name;
-        btn.__templateData = tpl;
-      } else {
-        btn.style.display = 'none';
-        btn.title = '';
-        btn.__templateData = null;
-      }
-    });
+    const containers = document.querySelectorAll('.quick-access-container');
+    if (containers.length === 0) return;
 
-    // Reveal the whole group ONLY after the loop is done and buttons are updated
-    container.querySelectorAll('.btn-split-add').forEach(el => el.classList.add('is-ready'));
+    containers.forEach(container => {
+      container.innerHTML = ''; // Clear skeleton
+
+      // Only show up to 3 quick access buttons
+      templates.slice(0, 3).forEach((tpl, i) => {
+        const qBtn = document.createElement('button');
+        qBtn.className = 'btn-split-add__quick';
+        qBtn.textContent = i + 1;
+        qBtn.title = tpl.name;
+        
+        let hoverTimeout = null;
+        let activePopover = null;
+
+        const destroyPopover = () => {
+          clearTimeout(hoverTimeout);
+          if (activePopover) {
+            activePopover.remove();
+            activePopover = null;
+          }
+        };
+
+        qBtn.addEventListener('mouseenter', () => {
+          hoverTimeout = setTimeout(() => {
+             if (activePopover) activePopover.remove();
+             
+             activePopover = document.createElement('div');
+             activePopover.className = 'quick-btn-popover';
+             // Reuse the wireframe builder for the preview
+             activePopover.appendChild(this.buildWireframe(tpl));
+             
+             const rect = qBtn.getBoundingClientRect();
+             activePopover.style.position = 'fixed';
+             activePopover.style.top = (rect.top - 10) + 'px';
+             activePopover.style.left = (rect.left + rect.width / 2) + 'px';
+             
+             document.body.appendChild(activePopover);
+          }, 500);
+        });
+
+        qBtn.addEventListener('mouseleave', destroyPopover);
+
+        qBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          destroyPopover();
+          // Dispatch a custom event to create an event from this template
+          window.dispatchEvent(new CustomEvent('node_rf:create_from_template', { 
+            detail: tpl 
+          }));
+        });
+
+        container.appendChild(qBtn);
+      });
+    });
   }
 };
 
@@ -339,7 +377,7 @@ function _buildCard(tpl) {
 
     // 3. Refresh UI
     _refresh(ensureDrawer());
-    TemplateDrawer.refreshQuickAccess();
+    TemplateDrawer.populateQuickAccess();
   });
 
   cardHeader.append(nameEl, deleteBtn);

@@ -846,13 +846,7 @@ body.edit-mode #btnOpenMinimap {
   display: flex; align-items: stretch;
   border-radius: 10px; overflow: hidden;
   border: 1.5px dashed var(--border);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease-in-out, border-color 0.2s;
-}
-.btn-split-add.is-ready {
-  opacity: 1;
-  pointer-events: auto;
+  transition: border-color 0.2s;
 }
 .btn-split-add:hover { border-color: var(--primary); }
 .btn-split-add__main {
@@ -864,7 +858,7 @@ body.edit-mode #btnOpenMinimap {
 }
 .btn-split-add__main:hover { color: var(--primary); background: rgba(59,130,246,0.06); }
 
-.btn-split-add__quick-container {
+.quick-access-container {
   display: flex; gap: 4px; padding: 0 8px;
   border-left: 1.5px dashed var(--border);
 }

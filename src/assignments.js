@@ -12,6 +12,7 @@ import { EventInteractions } from './ui/interactions/EventInteractions.js';
 import { BlockInteractions } from './ui/interactions/BlockInteractions.js';
 import { LayoutEngine } from './ui/LayoutEngine.js';
 import { TabManager } from './ui/TabManager.js';
+import { TemplateDrawer } from './ui/TemplateDrawer.js';
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export function switchView(view /* 'inventory' | pageId */) {
     }
     updateToolbarZoneUI();
     renderPageCanvas();
+    TemplateDrawer.populateQuickAccess();
   } else {
     Store.setCurrentPageId(null);
   }
@@ -338,6 +340,7 @@ function saveAsTemplate(evt) {
     // 2. Also keep in local session Store so it's immediately usable
     Store.getTemplates().push(templateData);
     saveAssignments();
+    TemplateDrawer.populateQuickAccess();
     PopupManager.showToast(`Template "${n}" saved!`);
   });
 }
@@ -357,5 +360,11 @@ export function initAssignments() {
 
   EventHub.on('requestRender', () => {
     renderPageCanvas();
+    TemplateDrawer.populateQuickAccess();
+  });
+
+  // Global listener for Split Button shortcuts (Clean Slate)
+  window.addEventListener('node_rf:create_from_template', (e) => {
+    createEvent(e.detail);
   });
 }
