@@ -117,6 +117,7 @@ export function openBlockAddMenu(e, evt, anchor, callbacks) {
     b.className = 'ctx-item'; 
     b.textContent = t.label;
     b.addEventListener('click', () => { 
+      if (callbacks.recordSnapshot) callbacks.recordSnapshot(); // Inject recordSnapshot here
       const newBlock = { id: callbacks.generateUID(), type: t.id };
       if (t.id === 'checklist') {
         newBlock.items = [
@@ -146,6 +147,7 @@ export function openColorPicker(e, evt, dot, onSave) {
   EVENT_PALETTE.forEach(c => {
     const o = document.createElement('div'); o.className = 'color-opt' + (evt.color === c ? ' active' : ''); o.style.background = c;
     o.addEventListener('click', () => { 
+      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
       evt.color = c; 
       dot.style.background = c; 
       // Mission 2: Live Update the header
@@ -186,6 +188,7 @@ export function openNoteColorPicker(e, anchor, onSave) {
     
     o.addEventListener('click', (ev) => {
       ev.stopPropagation();
+      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
       
       let finalColor = c;
       if (c.startsWith('var(')) {
@@ -224,6 +227,7 @@ export function openZoneSelector(e, target, anchor, context) {
     zones.forEach(z => {
       const b = document.createElement('button'); b.className = 'ctx-item' + (target.rfZone === z ? ' active' : ''); b.textContent = z;
       b.addEventListener('click', () => {
+        if (sharedState.recordSnapshot) sharedState.recordSnapshot();
         if (target.rfZone && target.rfZone !== z) {
            if (confirm(`Change zone to "${z}"? This will affect all events on this page.`)) { 
              target.rfZone = z; 
@@ -262,6 +266,7 @@ export function openRFPicker(e, row, evt, badge, context) {
       const i = document.createElement('div'); i.className = 'rf-picker-item';
       i.innerHTML = `<span class="rf-picker-freq">${ch.freq}</span><span class="rf-picker-name">${ch.name}</span>`;
       i.addEventListener('click', () => { 
+        if (sharedState.recordSnapshot) sharedState.recordSnapshot();
         context.onSelect(ch, row, evt, badge);
         closeAllPopups(); 
       });

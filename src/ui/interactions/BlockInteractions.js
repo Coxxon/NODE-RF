@@ -246,6 +246,7 @@ export const BlockInteractions = {
       }
     });
 
+    if (sharedState.recordSnapshot) sharedState.recordSnapshot();
     evt.blocks = newBlocks;
     Store.save();
     EventHub.emit('requestRender');

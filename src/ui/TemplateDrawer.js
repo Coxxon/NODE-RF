@@ -225,80 +225,31 @@ export const TemplateDrawer = {
     return wireframe;
   },
 
-  /**
-   * Targets all .quick-access-container in the DOM and populates them
-   * with buttons for the first 3 templates.
-   */
-  async populateQuickAccess() {
+  async refreshQuickAccess() {
     let templates = [];
     if (window.templateAPI) {
-      try { 
-        templates = await window.templateAPI.getTemplates(); 
-      } catch(e) { 
-        templates = Store.getTemplates(); 
-      }
+      try { templates = await window.templateAPI.getTemplates(); } catch(e){}
     } else {
       templates = Store.getTemplates();
     }
     
-    if (!Array.isArray(templates)) templates = [];
-
-    const containers = document.querySelectorAll('.quick-access-container');
-    if (containers.length === 0) return;
-
-    containers.forEach(container => {
-      container.innerHTML = ''; // Clear skeleton
-
-      // Only show up to 3 quick access buttons
-      templates.slice(0, 3).forEach((tpl, i) => {
-        const qBtn = document.createElement('button');
-        qBtn.className = 'btn-split-add__quick';
-        qBtn.textContent = i + 1;
-        qBtn.title = tpl.name;
-        
-        let hoverTimeout = null;
-        let activePopover = null;
-
-        const destroyPopover = () => {
-          clearTimeout(hoverTimeout);
-          if (activePopover) {
-            activePopover.remove();
-            activePopover = null;
-          }
-        };
-
-        qBtn.addEventListener('mouseenter', () => {
-          hoverTimeout = setTimeout(() => {
-             if (activePopover) activePopover.remove();
-             
-             activePopover = document.createElement('div');
-             activePopover.className = 'quick-btn-popover';
-             // Reuse the wireframe builder for the preview
-             activePopover.appendChild(this.buildWireframe(tpl));
-             
-             const rect = qBtn.getBoundingClientRect();
-             activePopover.style.position = 'fixed';
-             activePopover.style.top = (rect.top - 10) + 'px';
-             activePopover.style.left = (rect.left + rect.width / 2) + 'px';
-             
-             document.body.appendChild(activePopover);
-          }, 500);
-        });
-
-        qBtn.addEventListener('mouseleave', destroyPopover);
-
-        qBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          destroyPopover();
-          // Dispatch a custom event to create an event from this template
-          window.dispatchEvent(new CustomEvent('node_rf:create_from_template', { 
-            detail: tpl 
-          }));
-        });
-
-        container.appendChild(qBtn);
-      });
+    const btns = document.querySelectorAll('.btn-split-add__quick');
+    btns.forEach((btn) => {
+      const idx = parseInt(btn.dataset.index, 10);
+      const tpl = templates[idx];
+      if (tpl) {
+        btn.style.display = 'flex';
+        btn.title = tpl.name;
+        btn.__templateData = tpl;
+      } else {
+        btn.style.display = 'none';
+        btn.title = '';
+        btn.__templateData = null;
+      }
     });
+
+    // Reveal the button group once numbers are ready
+    document.querySelectorAll('.btn-split-add').forEach(el => el.classList.add('is-ready'));
   }
 };
 
@@ -377,7 +328,7 @@ function _buildCard(tpl) {
 
     // 3. Refresh UI
     _refresh(ensureDrawer());
-    TemplateDrawer.populateQuickAccess();
+    TemplateDrawer.refreshQuickAccess();
   });
 
   cardHeader.append(nameEl, deleteBtn);

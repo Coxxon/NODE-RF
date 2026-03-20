@@ -4,6 +4,7 @@
  * The #tabInventory button is STATIC in the HTML and must never be touched here.
  */
 import { Store } from '../core/Store.js';
+import { sharedState } from '../core/StateProvider.js';
 import * as PopupManager from './PopupManager.js';
 let _onSwitchView = null;
 
@@ -110,6 +111,7 @@ export const TabManager = {
    * Executes page deletion with state updates.
    */
   executeDeletePage(pageId, callbacks) {
+    if (sharedState.recordSnapshot) sharedState.recordSnapshot();
     const pages = Store.getPages().filter(p => p.id !== pageId);
     Store.setPages(pages);
     

@@ -1,6 +1,7 @@
 /**
  * NoteBlock.js — Content Variant
  */
+import { sharedState } from '../../../core/StateProvider.js';
 
 export function buildNoteBody(block, evt, callbacks = {}) {
   const editor = document.createElement('div');
@@ -34,6 +35,7 @@ export function buildNoteToolbar(block, evt, callbacks = {}) {
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
       document.execCommand(tool.cmd, false, null);
     });
     tb.appendChild(btn);

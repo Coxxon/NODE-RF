@@ -12,7 +12,6 @@ import { EventInteractions } from './ui/interactions/EventInteractions.js';
 import { BlockInteractions } from './ui/interactions/BlockInteractions.js';
 import { LayoutEngine } from './ui/LayoutEngine.js';
 import { TabManager } from './ui/TabManager.js';
-import { TemplateDrawer } from './ui/TemplateDrawer.js';
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -100,7 +99,6 @@ export function switchView(view /* 'inventory' | pageId */) {
     }
     updateToolbarZoneUI();
     renderPageCanvas();
-    TemplateDrawer.populateQuickAccess();
   } else {
     Store.setCurrentPageId(null);
   }
@@ -146,6 +144,7 @@ export function isAnyEventExpanded() {
 }
 
 export function toggleAllEvents() {
+  if (sharedState.recordSnapshot) sharedState.recordSnapshot();
   const pageEvts = Store.getEvents(Store.getCurrentPageId());
   if (pageEvts.length === 0) return;
   const anyOpen = pageEvts.some(ev => !ev.collapsed);
@@ -173,6 +172,7 @@ if (tabInventory) tabInventory.addEventListener('click', () => switchView('inven
 
 if (btnAddPage) {
   btnAddPage.addEventListener('click', () => {
+    if (sharedState.recordSnapshot) sharedState.recordSnapshot();
     const page = { id: generateUID(), label: `Page ${Store.getPages().length + 1}`, rfZone: '' };
     Store.getPages().push(page);
     Store.setEvents(page.id, []);
@@ -190,8 +190,8 @@ if (btnAddPage) {
 
 // ─── Render Wrapping ─────────────────────────────────────────────────────────
 
-export async function renderPageCanvas() {
-  await LayoutEngine.renderPageCanvas(pageCanvas, {
+export function renderPageCanvas() {
+  LayoutEngine.renderPageCanvas(pageCanvas, {
     saveAssignments,
     createEvent,
     deleteEvent,
@@ -204,6 +204,7 @@ export async function renderPageCanvas() {
 // ─── Event Management ─────────────────────────────────────────────────────────
 
 function createEvent(templateOrId = null) {
+  if (sharedState.recordSnapshot) sharedState.recordSnapshot();
   // Accept either: a bare template object (from drawer) or an ID string (from session Store)
   let template = null;
   if (templateOrId) {
@@ -246,6 +247,7 @@ function createEvent(templateOrId = null) {
 }
 
 function deleteEvent(id) {
+  if (sharedState.recordSnapshot) sharedState.recordSnapshot();
   const cid = Store.getCurrentPageId();
   const list = Store.getEvents(cid);
   Store.setEvents(cid, list.filter(e => e.id !== id));
@@ -254,6 +256,7 @@ function deleteEvent(id) {
 }
 
 function duplicateEvent(evt) {
+  if (sharedState.recordSnapshot) sharedState.recordSnapshot();
   const clone = JSON.parse(JSON.stringify(evt));
   clone.id = generateUID();
   if (clone.blocks) {
@@ -340,7 +343,6 @@ function saveAsTemplate(evt) {
     // 2. Also keep in local session Store so it's immediately usable
     Store.getTemplates().push(templateData);
     saveAssignments();
-    TemplateDrawer.populateQuickAccess();
     PopupManager.showToast(`Template "${n}" saved!`);
   });
 }
@@ -360,11 +362,5 @@ export function initAssignments() {
 
   EventHub.on('requestRender', () => {
     renderPageCanvas();
-    TemplateDrawer.populateQuickAccess();
-  });
-
-  // Global listener for Split Button shortcuts (Clean Slate)
-  window.addEventListener('node_rf:create_from_template', (e) => {
-    createEvent(e.detail);
   });
 }

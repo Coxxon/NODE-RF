@@ -33,6 +33,7 @@ function createWindow () {
   // automatically (the listeners will be removed when the window is closed)
   // and restore the maximized state, if it was maximized before closing
   mainWindowState.manage(win);
+  win.webContents.openDevTools();
 
   // Remove default menu for cleaner look
   Menu.setApplicationMenu(null)

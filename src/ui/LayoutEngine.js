@@ -9,7 +9,7 @@ import { EVENT_PALETTE } from '../core/Constants.js';
 import { getRFInfo, getAllRFChannels } from '../core/RFUtils.js';
 import { handleVerticalNavigation, generateUID } from '../utils.js';
 import { TemplateDrawer } from './TemplateDrawer.js';
-
+import { sharedState } from '../core/StateProvider.js';
 import { buildAssignmentBody } from './blocks/variants/AssignmentBlock.js';
 import { buildNoteBody, buildNoteToolbar } from './blocks/variants/NoteBlock.js';
 import { buildChecklistBody } from './blocks/variants/ChecklistBlock.js';
@@ -27,26 +27,34 @@ export const LayoutEngine = {
     if (!pageCanvas) return;
     pageCanvas.innerHTML = '';
     
-    const pageId = Store.getCurrentPageId();
-    if (!pageId) return;
+    const currentId = Store.getCurrentPageId();
+    if (!currentId) return;
 
-    const events = Store.getEvents(pageId) || [];
-    
+    const events = Store.getEvents(currentId);
+
     if (events.length === 0) {
       const empty = document.createElement('div');
-      empty.className = 'canvas-empty-state';
+      empty.className = 'page-canvas-empty';
+      empty.style.gridColumn = '1 / -1';
       empty.innerHTML = `
-        <div class="canvas-empty-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-        </div>
-        <h3>No events on this page</h3>
-        <p>Start by creating your first technical event.</p>
-      `;
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+        <p>No events yet on this page.<br>Create your first event to start tracking assignments.</p>
+        <button class="btn-canvas-add" id="btnFirstEvent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New Event
+        </button>`;
       pageCanvas.appendChild(empty);
       // Split button in empty state
       const split = this.buildAddEventSplitBtn(callbacks);
       split.style.marginTop = '12px';
       empty.appendChild(split);
+      // Remove the old btn-canvas-add that was inline in the empty HTML
+      const oldBtn = empty.querySelector('#btnFirstEvent');
+      if (oldBtn) oldBtn.remove();
       return;
     }
 
@@ -63,7 +71,7 @@ export const LayoutEngine = {
 
   /**
    * Builds the split '+ New Event / chevron' button.
-   * Left: creates a blank event. Middle: container for dynamic templates. Right: drawer toggle.
+   * Left: creates a blank event. Right: placeholder for template drawer (Step 3).
    */
   buildAddEventSplitBtn(callbacks) {
     const wrapper = document.createElement('div');
@@ -75,10 +83,59 @@ export const LayoutEngine = {
     mainBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> New Event`;
     mainBtn.addEventListener('click', () => callbacks.createEvent(null));
 
-    // Dynamic shell for quick access shortcuts
     const quickContainer = document.createElement('div');
-    quickContainer.className = 'quick-access-container';
+    quickContainer.className = 'btn-split-add__quick-container';
+    quickContainer.style.display = 'flex';
     
+    let hoverTimeout = null;
+    let activePopover = null;
+
+    for (let i = 0; i < 3; i++) {
+        const qBtn = document.createElement('button');
+        qBtn.className = `btn-split-add__quick`;
+        qBtn.dataset.index = i;
+        qBtn.textContent = i + 1;
+        qBtn.style.display = 'none';
+        
+        const destroyPopover = () => {
+          clearTimeout(hoverTimeout);
+          if (activePopover) {
+            activePopover.remove();
+            activePopover = null;
+          }
+        };
+
+        qBtn.addEventListener('mouseenter', () => {
+          hoverTimeout = setTimeout(() => {
+             if (!qBtn.__templateData) return;
+             if (activePopover) activePopover.remove(); // safety
+             
+             activePopover = document.createElement('div');
+             activePopover.className = 'quick-btn-popover';
+             activePopover.appendChild(TemplateDrawer.buildTemplatePreview(qBtn.__templateData));
+             
+             const rect = qBtn.getBoundingClientRect();
+             activePopover.style.position = 'fixed';
+             // Anchor popover comfortably above the button
+             activePopover.style.top = (rect.top - 10) + 'px';
+             activePopover.style.left = (rect.left + rect.width / 2) + 'px';
+             
+             document.body.appendChild(activePopover);
+          }, 500);
+        });
+
+        qBtn.addEventListener('mouseleave', destroyPopover);
+
+        qBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            destroyPopover();
+            if (qBtn.__templateData && callbacks.createEvent) {
+               callbacks.createEvent(qBtn.__templateData);
+            }
+        });
+        quickContainer.appendChild(qBtn);
+    }
+
     const chevronBtn = document.createElement('button');
     chevronBtn.className = 'btn-split-add__chevron';
     chevronBtn.title = 'Create from template';
@@ -89,6 +146,8 @@ export const LayoutEngine = {
     });
 
     wrapper.append(mainBtn, quickContainer, chevronBtn);
+
+    setTimeout(() => TemplateDrawer.refreshQuickAccess(), 50);
 
     return wrapper;
   },
@@ -139,10 +198,14 @@ export const LayoutEngine = {
 
     const dot = document.createElement('div');
     dot.className = 'event-color-dot';
-    dot.style.background = evt.color;
+    if (evt.color) dot.style.background = evt.color;
+    header.appendChild(dot);
+
     dot.addEventListener('click', (e) => { 
       e.stopPropagation(); 
-      PopupManager.openColorPicker(e, evt, dot, callbacks.saveAssignments); 
+      PopupManager.openColorPicker(e, evt, dot, () => {
+        callbacks.saveAssignments();
+      }); 
     });
 
     const nameInput = document.createElement('input');
@@ -229,6 +292,7 @@ export const LayoutEngine = {
     eventResizer.innerHTML = evSpan === 2 ? iconFullEv : iconHalfEv;
     eventResizer.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
       evt.span = (evt.span === 2) ? 1 : 2;
       if (evt.span === 1) {
          (evt.blocks || []).forEach(b => delete b.side);
