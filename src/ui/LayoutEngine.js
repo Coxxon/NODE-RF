@@ -69,8 +69,8 @@ export const LayoutEngine = {
     ConflictManager.checkConflicts();
     
     // Mission: Synchronized Lifecycle
-    // Await the update and reveal of ALL Split Buttons once they are in the DOM
-    await TemplateDrawer.refreshQuickAccess();
+    // Await the update and reveal of ALL Split Buttons once they are in the DOM (even if detached)
+    await TemplateDrawer.refreshQuickAccess(pageCanvas);
   },
 
   /**

@@ -225,7 +225,7 @@ export const TemplateDrawer = {
     return wireframe;
   },
 
-  async refreshQuickAccess() {
+  async refreshQuickAccess(container = document) {
     let templates = [];
     if (window.templateAPI) {
       try { 
@@ -242,7 +242,7 @@ export const TemplateDrawer = {
     // Ensure we always have an array even on error/empty
     if (!Array.isArray(templates)) templates = [];
 
-    const btns = document.querySelectorAll('.btn-split-add__quick');
+    const btns = container.querySelectorAll('.btn-split-add__quick');
     btns.forEach((btn) => {
       const idx = parseInt(btn.dataset.index, 10);
       const tpl = templates[idx];
@@ -260,7 +260,7 @@ export const TemplateDrawer = {
     });
 
     // Reveal the whole group ONLY after the loop is done and buttons are updated
-    document.querySelectorAll('.btn-split-add').forEach(el => el.classList.add('is-ready'));
+    container.querySelectorAll('.btn-split-add').forEach(el => el.classList.add('is-ready'));
   }
 };
 
