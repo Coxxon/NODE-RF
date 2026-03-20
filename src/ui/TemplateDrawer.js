@@ -232,8 +232,18 @@ export const TemplateDrawer = {
     } else {
       templates = Store.getTemplates();
     }
+    this.refreshQuickAccessSync(document, templates);
+  },
+
+  /**
+   * Synchronously populates Quick Access buttons using provided or stored templates.
+   * @param {HTMLElement|Document} root - Scoped search for buttons.
+   * @param {Array} manualTemplates - Optional templates array to use.
+   */
+  refreshQuickAccessSync(root = document, manualTemplates = null) {
+    const templates = manualTemplates || Store.getTemplates();
+    const btns = root.querySelectorAll('.btn-split-add__quick');
     
-    const btns = document.querySelectorAll('.btn-split-add__quick');
     btns.forEach((btn) => {
       const idx = parseInt(btn.dataset.index, 10);
       const tpl = templates[idx];

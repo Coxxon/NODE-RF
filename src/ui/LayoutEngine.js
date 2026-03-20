@@ -147,7 +147,8 @@ export const LayoutEngine = {
 
     wrapper.append(mainBtn, quickContainer, chevronBtn);
 
-    setTimeout(() => TemplateDrawer.refreshQuickAccess(), 50);
+    // Instant sync-refresh before the fragment is even returned/appended
+    TemplateDrawer.refreshQuickAccessSync(wrapper);
 
     return wrapper;
   },
