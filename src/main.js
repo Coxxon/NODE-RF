@@ -8,6 +8,15 @@ import { initAssignments, saveAssignments, toggleAllEvents, renderPageCanvas, is
 setAssignmentState, clearAssignments, switchView, getAssignmentsLastView } from './assignments.js';
 import { Store } from './core/Store.js';
 
+// ─── UTILS ──────────────────────────────────────────────────────────────────
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
 // Garde-fou Throttle : Force le snapshot dès qu'on quitte un champ
 document.addEventListener('blur', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
@@ -62,6 +71,70 @@ let customZoneNames = {};
 let mainZoneOrder = [];
 let zoneColors = {}; 
 let currentCsvFilePath = null; // Absolute path of last loaded CSV (Electron only)
+
+// ─── SEARCH (Fuse.js) ────────────────────────────────────────────────────────
+const FUSE_BASE_OPTIONS = {
+  keys: [
+    { name: 'searchFreq', weight: 2.0 },
+    { name: 'name', weight: 1.0 },
+    { name: 'series', weight: 1.0 },
+    { name: 'notes', weight: 0.5 },
+    { name: 'zone', weight: 0.3 },
+    { name: 'band', weight: 0.2 }
+  ],
+  distance: 100,
+  useExtendedSearch: true,
+  location: 0,
+  minMatchCharLength: 1
+};
+
+let _fuse = null;
+let _fuseLastVersion = -1;
+
+function flattenStoreForSearch() {
+  const flat = [];
+  parsedZones.forEach(zone => {
+    zone.groups.forEach(group => {
+      group.subgroups.forEach(subgroup => {
+        subgroup.rows.forEach(row => {
+          const name = rfNames[row.id] ?? (row.isCustom ? (customFreqData[row.id]?.channelName ?? '') : (row.channelName ?? ''));
+          const note = rfNotes[row.id] ?? '';
+          const freq = row.isCustom ? (customFreqData[row.id]?.frequency ?? '') : (row.frequency ?? '');
+          
+          // Harmonize: convert comma to dot for internal indexing ONLY
+          const searchFreq = freq.replace(/,/g, '.');
+          
+          flat.push({
+            id: row.id,
+            zone: zone.name ?? 'Unknown Zone',
+            group: group.name ?? 'Unknown Group',
+            subgroup: subgroup.name ?? 'Unknown Subgroup',
+            frequency: freq, // Keep original for display
+            searchFreq: searchFreq, // Hidden technical field for Fuse
+            name: name,
+            notes: note,
+            series: row.series ?? '',
+            band: row.band ?? ''
+          });
+        });
+      });
+    });
+  });
+  return flat;
+}
+
+function getFuseIndex() {
+  const currentVersion = Store._lastSnapshotTime;
+  if (!_fuse || _fuseLastVersion !== currentVersion) {
+    const data = flattenStoreForSearch();
+    _fuse = new Fuse(data, {
+      ...FUSE_BASE_OPTIONS,
+      threshold: 0.2 // DEFAULT for text
+    });
+    _fuseLastVersion = currentVersion;
+  }
+  return _fuse;
+}
 
 // ─── AUTOSAVE ───────────────────────────────────────────────────────────────
 
@@ -676,17 +749,35 @@ sessionFileInput.addEventListener('change', (e) => {
 // Initialization
 document.documentElement.setAttribute('data-theme', currentTheme);
 
-searchInput.addEventListener('input', (e) => {
-  const q = e.target.value.toLowerCase();
-  document.querySelectorAll('tbody tr').forEach(tr => {
-    const text = tr.innerText.toLowerCase();
-    tr.classList.toggle('hidden-search', !text.includes(q));
-  });
-  document.querySelectorAll('.zone-container').forEach(zone => {
-    const visibleRows = zone.querySelectorAll('tbody tr:not(.hidden-search)');
-    zone.classList.toggle('hidden-search', visibleRows.length === 0);
-  });
-});
+// Initialisation effectuée UNE SEULE FOIS
+const handleSearch = debounce((e) => {
+  const q = e.target.value.trim();
+  if (!q) {
+    renderReport();
+    return;
+  }
+
+  // Detect and harmonize frequency queries
+  const isFrequencyQuery = /[\d]+[.,][\d]/.test(q);
+  const normalizedQ = q.replace(/,/g, '.');
+  
+  let results = [];
+  if (isFrequencyQuery) {
+    // Ephemeral strict instance for frequency matching
+    const data = flattenStoreForSearch();
+    const strictFuse = new Fuse(data, { ...FUSE_BASE_OPTIONS, threshold: 0.05 });
+    results = strictFuse.search(normalizedQ);
+  } else {
+    // Cached flexible instance for text matching
+    const fuse = getFuseIndex();
+    results = fuse.search(normalizedQ);
+  }
+
+  const filtered = results.map(r => r.item);
+  renderReport(filtered);
+}, 200);
+
+searchInput.addEventListener('input', handleSearch);
 
 function resetAllData() {
   parsedZones = [];
@@ -817,41 +908,60 @@ function addCustomRow(zoneName, groupName, subgroupName) {
   renderReport();
 }
 
-function renderReport() {
+function renderReport(filteredItems = null) {
   reportContainer.innerHTML = '';
-  let renderZones = JSON.parse(JSON.stringify(parsedZones));
-  
-  if (renderZones.length === 0 && customFreqs.length > 0) {
-      const zones = [...new Set(customFreqs.map(c => c.zoneName))];
-      zones.forEach(zn => renderZones.push({ name: zn, groups: [] }));
+  let renderZones = [];
+
+  if (filteredItems) {
+    // ─── Filtered Mode (Search Results) ───
+    filteredItems.forEach(item => {
+      let zone = renderZones.find(z => z.name === item.zone);
+      if (!zone) { zone = { name: item.zone, groups: [] }; renderZones.push(zone); }
+      
+      let group = zone.groups.find(g => g.name === item.group);
+      if (!group) { group = { name: item.group, subgroups: [] }; zone.groups.push(group); }
+      
+      let subgroup = group.subgroups.find(sg => sg.name === item.subgroup);
+      if (!subgroup) { subgroup = { name: item.subgroup, rows: [] }; group.subgroups.push(subgroup); }
+      
+      // We pass the row item as is
+      subgroup.rows.push(item);
+    });
+  } else {
+    // ─── Standard Mode (Full Inventory) ───
+    renderZones = JSON.parse(JSON.stringify(parsedZones));
+
+    if (renderZones.length === 0 && customFreqs.length > 0) {
+        const zones = [...new Set(customFreqs.map(c => c.zoneName))];
+        zones.forEach(zn => renderZones.push({ name: zn, groups: [] }));
+    }
+
+    renderZones.forEach(zone => {
+      let obsGroup = zone.groups.find(g => g.name.includes('Observations'));
+      if (!obsGroup) {
+        obsGroup = { name: 'Observations', subgroups: [{ name: 'Divers / Manuel', rows: [] }] };
+        zone.groups.push(obsGroup);
+      }
+    });
+
+    customFreqs.forEach(cf => {
+      let targetZone = renderZones.find(z => z.name === cf.zoneName);
+      if (!targetZone) { targetZone = { name: cf.zoneName, groups: [] }; renderZones.push(targetZone); }
+      
+      let targetGroup = targetZone.groups.find(g => g.name === cf.groupName);
+      if (!targetGroup) {
+        targetGroup = { name: cf.groupName || 'Manual Observations', subgroups: [] };
+        targetZone.groups.push(targetGroup);
+      }
+      
+      let targetSubgroup = targetGroup.subgroups.find(sg => sg.name === cf.subgroupName);
+      if (!targetSubgroup) {
+          targetSubgroup = { name: cf.subgroupName || 'Active', rows: [] };
+          targetGroup.subgroups.push(targetSubgroup);
+      }
+      targetSubgroup.rows.push(cf);
+    });
   }
-
-  renderZones.forEach(zone => {
-    // Ensure every zone at least has one "Observations" group if it's empty or for the "out-of-field" additions
-    let obsGroup = zone.groups.find(g => g.name.includes('Observations'));
-    if (!obsGroup) {
-      obsGroup = { name: 'Observations', subgroups: [{ name: 'Divers / Manuel', rows: [] }] };
-      zone.groups.push(obsGroup);
-    }
-  });
-
-  customFreqs.forEach(cf => {
-    let targetZone = renderZones.find(z => z.name === cf.zoneName);
-    if (!targetZone) { targetZone = { name: cf.zoneName, groups: [] }; renderZones.push(targetZone); }
-    
-    let targetGroup = targetZone.groups.find(g => g.name === cf.groupName);
-    if (!targetGroup) {
-      targetGroup = { name: cf.groupName || 'Manual Observations', subgroups: [] };
-      targetZone.groups.push(targetGroup);
-    }
-    
-    let targetSubgroup = targetGroup.subgroups.find(sg => sg.name === cf.subgroupName);
-    if (!targetSubgroup) {
-        targetSubgroup = { name: cf.subgroupName || 'Active', rows: [] };
-        targetGroup.subgroups.push(targetSubgroup);
-    }
-    targetSubgroup.rows.push(cf);
-  });
 
   if (renderZones.length === 0) {
     reportContainer.innerHTML = '<p style="text-align:center; color: var(--text-muted); margin-top: 40px;">No data. Drop a CSV or Session file here.</p>';
@@ -969,6 +1079,7 @@ function renderReport() {
           }
 
           const tr = document.createElement('tr');
+          tr.dataset.rowId = r.id;
           if (r.isCustom) tr.classList.add('row-custom');
           if (isAssignedBackup) tr.classList.add('status-backup');
           else if (currentStatus > 0) tr.classList.add(stateClasses[currentStatus]);
@@ -987,15 +1098,15 @@ function renderReport() {
           } else {
             tdHtml += `<td class="col-Frequency">${r.frequency}</td>`;
           }
-          let currentName = rfNames[r.id] !== undefined ? rfNames[r.id] : (r.isCustom ? (customFreqData[r.id]?.channelName || '') : r.channelName);
-          let savedNote = rfNotes[r.id] || '';
+          let currentName = rfNames[r.id] ?? (r.isCustom ? (customFreqData[r.id]?.channelName ?? '') : (r.channelName ?? ''));
+          let savedNote = rfNotes[r.id] ?? '';
           
           let spareBadge = (!r.isCustom && r.isSpare && !isAssignedBackup) ? `<span class="flag-badge" style="color:#fbbf24;border-color:#fbbf24;">Spare</span>` : '';
           
           if (isAssignedBackup) {
-             let assignerName = rfNames[activeAssignerId] !== undefined ? rfNames[activeAssignerId] : 'Muted Channel';
+             let assignerName = rfNames[activeAssignerId] ?? 'Muted Channel';
              currentName = 'Used for : ' + assignerName;
-             savedNote = rfNotes[activeAssignerId] || '';
+             savedNote = rfNotes[activeAssignerId] ?? '';
           }
 
           tdHtml += `<td class="col-Name"><div style="display:flex;align-items:center;"><input type="text" class="row-input name-input" value="${currentName}" placeholder="" data-id="${r.id}" ${isAssignedBackup?'disabled':''}>${spareBadge}</div></td>`;
@@ -1264,7 +1375,6 @@ function renderReport() {
   });
   
   checkDuplicates();
-  searchInput.dispatchEvent(new Event('input'));
   
   // Sync shared state for assignments module
   sharedState.parsedZones  = parsedZones;
@@ -1476,6 +1586,19 @@ function handleMinimapDragEnd(e) {
   if (minimapPlaceholder.parentNode) minimapPlaceholder.remove();
   draggedMinimapItem = null;
 }
+
+// ─── Sidebar Pages Reordering ───────────────────────────────────────────────
+document.addEventListener('pages:reordered', (e) => {
+  const { newOrder } = e.detail;
+  const pages = Store.getPages();
+  const sortedPages = newOrder.map(id => pages.find(p => p.id === id)).filter(Boolean);
+  
+  if (sortedPages.length > 0) {
+    Store.setPages(sortedPages);
+    Store._forceNextSnapshot = true;
+    Store.save();
+  }
+});
 
 renderReport();
 

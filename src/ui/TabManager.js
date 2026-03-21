@@ -66,6 +66,53 @@ export const TabManager = {
 
       wrapper.appendChild(btn);
       wrapper.appendChild(closeBtn);
+
+      // ─── Drag & Drop Reordering ───────────────────────────────────────────
+      wrapper.addEventListener('dragstart', (e) => {
+        wrapper.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', page.id);
+      });
+
+      wrapper.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const dragging = container.querySelector('.dragging');
+        if (dragging && dragging !== wrapper) {
+            const rect = wrapper.getBoundingClientRect();
+            const next = (e.clientY - rect.top) > (rect.height / 2);
+            
+            let placeholder = container.querySelector('.drag-placeholder');
+            if (!placeholder) {
+                placeholder = document.createElement('div');
+                placeholder.className = 'drag-placeholder';
+            }
+            if (next) wrapper.after(placeholder);
+            else wrapper.before(placeholder);
+        }
+      });
+
+      wrapper.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const dragging = container.querySelector('.dragging');
+        const placeholder = container.querySelector('.drag-placeholder');
+        if (dragging && placeholder) {
+            placeholder.replaceWith(dragging);
+        }
+        
+        const newOrder = Array.from(container.querySelectorAll('.page-tab-wrapper'))
+                              .map(w => w.dataset.pageId);
+        document.dispatchEvent(new CustomEvent('pages:reordered', { 
+            detail: { newOrder } 
+        }));
+      });
+
+      wrapper.addEventListener('dragend', () => {
+        wrapper.classList.remove('dragging');
+        const placeholder = container.querySelector('.drag-placeholder');
+        if (placeholder) placeholder.remove();
+      });
+
       container.appendChild(wrapper);
     });
   },

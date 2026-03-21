@@ -205,6 +205,7 @@ export const Store = {
       // Initialize history state
       this.lastKnownState = structuredClone(this.data);
       this.lastKnownActiveView = this._getActiveView();
+      this._lastSnapshotTime = 0;
     } catch(e) { console.warn('Store load failed', e); }
   }
 };
