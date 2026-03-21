@@ -10,12 +10,12 @@ export const ToastManager = {
         document.body.appendChild(container);
 
         document.addEventListener('app:toast', (e) => {
-            const { message, undo } = e.detail;
-            this.show(message, undo);
+            const { message, actionLabel, onAction } = e.detail;
+            this.show(message, actionLabel, onAction);
         });
     },
 
-    show(message, hasUndo = false) {
+    show(message, actionLabel = null, onAction = null) {
         const container = document.getElementById('toast-container');
         if (!container) return;
 
@@ -27,25 +27,16 @@ export const ToastManager = {
         text.textContent = message;
         toast.appendChild(text);
 
-        if (hasUndo) {
-            const undoBtn = document.createElement('button');
-            undoBtn.className = 'toast-undo-btn';
-            undoBtn.textContent = 'ANNULER';
-            undoBtn.addEventListener('click', () => {
-                Store.undo();
+        if (actionLabel && onAction) {
+            const actionBtn = document.createElement('button');
+            actionBtn.className = 'toast-undo-btn';
+            actionBtn.textContent = actionLabel.toUpperCase();
+            actionBtn.addEventListener('click', () => {
+                onAction();
                 toast.classList.add('removing');
                 setTimeout(() => toast.remove(), 300);
-                
-                // Refresh tabs after undo
-                const pagesTabGroup = document.getElementById('pagesTabGroup');
-                if (pagesTabGroup) {
-                    // We need to re-render tabs. Since ToastManager is a separate module,
-                    // we can dispatch an event or rely on main.js to handle it.
-                    // For now, let's assume Store.undo() triggers a state change that main.js listens to.
-                    document.dispatchEvent(new CustomEvent('app:state-restored'));
-                }
             });
-            toast.appendChild(undoBtn);
+            toast.appendChild(actionBtn);
         }
 
         container.appendChild(toast);

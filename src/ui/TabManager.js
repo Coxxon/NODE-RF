@@ -82,96 +82,18 @@ export const TabManager = {
 
       wrapper.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        this.showContextMenu(e.clientX, e.clientY, page.id, container, callbacks);
+        document.dispatchEvent(new CustomEvent('tab:contextmenu', {
+          detail: {
+            pageId: page.id,
+            x: e.clientX,
+            y: e.clientY,
+            target: btn
+          }
+        }));
       });
 
       container.appendChild(wrapper);
     });
-  },
-
-  showContextMenu(x, y, pageId, container, callbacks) {
-    document.querySelectorAll('.custom-context-menu').forEach(el => el.remove());
-    
-    const menu = document.createElement('div');
-    menu.className = 'custom-context-menu';
-    menu.style.left = `${x}px`;
-    menu.style.top = `${y}px`;
-    
-    // RENAME
-    const renameItem = document.createElement('div');
-    renameItem.className = 'context-menu-item';
-    renameItem.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-      </svg>
-      Renommer la page
-    `;
-    renameItem.addEventListener('click', () => {
-      const btn = container.querySelector(`.page-tab-btn[data-page-id="${pageId}"]`);
-      if (btn) this.startRenameTab(btn, callbacks);
-      menu.remove();
-    });
-
-    // DUPLICATE
-    const duplicateItem = document.createElement('div');
-    duplicateItem.className = 'context-menu-item';
-    duplicateItem.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-      </svg>
-      Dupliquer la page
-    `;
-    duplicateItem.addEventListener('click', () => {
-      const newPageId = Store.clonePage(pageId);
-      if (newPageId) {
-        this.renderPageTabs(container, callbacks);
-        callbacks.onSwitchView(newPageId);
-      }
-      menu.remove();
-    });
-
-    // SOFT DELETE
-    const deleteItem = document.createElement('div');
-    deleteItem.className = 'context-menu-item context-menu-item--danger';
-    deleteItem.style.color = '#ef4444';
-    deleteItem.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-      </svg>
-      Supprimer la page
-    `;
-    deleteItem.addEventListener('click', () => {
-      const pageName = page.label || 'Sans titre';
-      const nextId = Store.softDeletePage(pageId);
-      this.renderPageTabs(container, callbacks);
-      callbacks.onSwitchView(nextId);
-      
-      // Notify Toast System
-      document.dispatchEvent(new CustomEvent('app:toast', { 
-          detail: { 
-              message: `Page "${pageName}" supprimée.`,
-              undo: true 
-          } 
-      }));
-      menu.remove();
-    });
-    
-    menu.appendChild(renameItem);
-    menu.appendChild(duplicateItem);
-    menu.appendChild(document.createElement('div')).className = 'dropdown-divider';
-    menu.appendChild(deleteItem);
-    document.body.appendChild(menu);
-    
-    const clickOutside = (e) => {
-      if (!menu.contains(e.target)) {
-        menu.remove();
-        document.removeEventListener('mousedown', clickOutside);
-      }
-    };
-    document.addEventListener('mousedown', clickOutside);
   },
 
   /**

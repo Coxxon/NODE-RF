@@ -1681,26 +1681,7 @@ function closeZonePopups() {
 }
 // ─── Undo / Redo Orchestration ──────────────────────────────────────────────
 
-window.addEventListener('keydown', (e) => {
-  const isZ = e.key.toLowerCase() === 'z';
-  const isY = e.key.toLowerCase() === 'y';
-  const isCtrl = e.ctrlKey || e.metaKey;
-
-  if (!isCtrl || (!isZ && !isY)) return;
-
-  // Focus guard: Don't hijack native undo in text fields
-  const active = document.activeElement;
-  const isTextEditing = active && (
-    active.tagName === 'INPUT' || 
-    active.tagName === 'TEXTAREA' || 
-    active.isContentEditable
-  );
-  if (isTextEditing) return;
-
-  e.preventDefault();
-
-  const isRedo = isY || (isZ && e.shiftKey);
-  
+function executeSymmetricUndo(isRedo = false) {
   Store.isRestoring = true; // Block autosaves during this render
   
   const newState = isRedo ? Store.redo() : Store.undo();
@@ -1716,25 +1697,19 @@ window.addEventListener('keydown', (e) => {
 
     const restoredView = Store.__tempRestoredView;
 
-    // Routage inconditionnel basé sur la variable restaurée (Contextual Snapshot)
+    // Symmetric Routing Logic (Matches Ctrl+Z)
     if (restoredView === 'inventory' || !restoredView) {
-        Store.isRestoring = false; // CRUCIAL : Reset synchrone AVANT le switchView
-        
+        Store.isRestoring = false; 
         if (typeof switchView === 'function') switchView('inventory');
         if (typeof renderReport === 'function') renderReport();
-        
-        // Réveil des templates
         if (typeof TemplateDrawer !== 'undefined' && typeof TemplateDrawer.refreshQuickAccess === 'function') {
             TemplateDrawer.refreshQuickAccess();
         }
     } else {
-        // Routage direct vers la page restaurée depuis le snapshot
         if (typeof switchView === 'function') switchView(restoredView);
-        
         requestAnimationFrame(async () => {
             if (mainContainer) mainContainer.scrollTop = scrollTop;
-            Store.isRestoring = false; // Reset APRÈS la stabilisation du DOM
-            
+            Store.isRestoring = false; 
             if (typeof TemplateDrawer !== 'undefined' && typeof TemplateDrawer.refreshQuickAccess === 'function') {
                 await TemplateDrawer.refreshQuickAccess();
             }
@@ -1743,4 +1718,120 @@ window.addEventListener('keydown', (e) => {
   } else {
     Store.isRestoring = false;
   }
+}
+
+window.addEventListener('keydown', (e) => {
+  const isZ = e.key.toLowerCase() === 'z';
+  const isY = e.key.toLowerCase() === 'y';
+  const isCtrl = e.ctrlKey || e.metaKey;
+
+  if (!isCtrl || (!isZ && !isY)) return;
+
+  const active = document.activeElement;
+  const isTextEditing = active && (
+    active.tagName === 'INPUT' || 
+    active.tagName === 'TEXTAREA' || 
+    active.isContentEditable
+  );
+  if (isTextEditing) return;
+
+  e.preventDefault();
+  executeSymmetricUndo(isY || (isZ && e.shiftKey));
+});
+
+// ─── English Context Menu & Page Management ──────────────────────────────────
+document.addEventListener('tab:contextmenu', (e) => {
+  const { pageId, x, y, target } = e.detail;
+  const pages = Store.getPages();
+  const page = pages.find(p => p.id === pageId);
+  if (!page) return;
+
+  document.querySelectorAll('.custom-context-menu').forEach(el => el.remove());
+  
+  const menu = document.createElement('div');
+  menu.className = 'custom-context-menu';
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  
+  // RENAME
+  const renameItem = document.createElement('div');
+  renameItem.className = 'context-menu-item';
+  renameItem.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+      <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Rename Page
+  `;
+  renameItem.addEventListener('click', () => {
+    if (typeof renderPageTabs === 'function') {
+       // We need to trigger the rename UI on the target element
+       import('./ui/TabManager.js').then(({ TabManager }) => {
+          TabManager.startRenameTab(target, {
+            onSave: autosave,
+            onSwitchView: switchView
+          });
+       });
+    }
+    menu.remove();
+  });
+
+  // DUPLICATE
+  const duplicateItem = document.createElement('div');
+  duplicateItem.className = 'context-menu-item';
+  duplicateItem.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    Duplicate Page
+  `;
+  duplicateItem.addEventListener('click', () => {
+    const newPageId = Store.clonePage(pageId);
+    if (newPageId) {
+      if (typeof renderPageTabs === 'function') renderPageTabs();
+      switchView(newPageId);
+    }
+    menu.remove();
+  });
+
+  // DELETE
+  const deleteItem = document.createElement('div');
+  deleteItem.className = 'context-menu-item context-menu-item--danger';
+  deleteItem.style.color = '#ef4444';
+  deleteItem.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    </svg>
+    Delete Page
+  `;
+  deleteItem.addEventListener('click', () => {
+    const pageName = page.label || 'Untitled';
+    const nextId = Store.softDeletePage(pageId); // Includes routing in Store.js
+    
+    if (typeof renderPageTabs === 'function') renderPageTabs();
+    switchView(nextId);
+    Store.save();
+
+    ToastManager.show(`Page "${pageName}" deleted.`, 'UNDO', () => {
+      executeSymmetricUndo();
+    });
+
+    menu.remove();
+  });
+  
+  menu.appendChild(renameItem);
+  menu.appendChild(duplicateItem);
+  menu.appendChild(document.createElement('div')).className = 'dropdown-divider';
+  menu.appendChild(deleteItem);
+  document.body.appendChild(menu);
+  
+  const clickOutside = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove();
+      document.removeEventListener('mousedown', clickOutside);
+    }
+  };
+  setTimeout(() => document.addEventListener('mousedown', clickOutside), 10);
 });
