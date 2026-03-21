@@ -35,7 +35,7 @@ export function buildNoteToolbar(block, evt, callbacks = {}) {
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+      if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
       document.execCommand(tool.cmd, false, null);
     });
     tb.appendChild(btn);

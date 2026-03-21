@@ -147,7 +147,7 @@ export function openColorPicker(e, evt, dot, onSave) {
   EVENT_PALETTE.forEach(c => {
     const o = document.createElement('div'); o.className = 'color-opt' + (evt.color === c ? ' active' : ''); o.style.background = c;
     o.addEventListener('click', () => { 
-      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+      if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
       evt.color = c; 
       dot.style.background = c; 
       // Mission 2: Live Update the header
@@ -227,7 +227,7 @@ export function openZoneSelector(e, target, anchor, context) {
     zones.forEach(z => {
       const b = document.createElement('button'); b.className = 'ctx-item' + (target.rfZone === z ? ' active' : ''); b.textContent = z;
       b.addEventListener('click', () => {
-        if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+        if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
         if (target.rfZone && target.rfZone !== z) {
            if (confirm(`Change zone to "${z}"? This will affect all events on this page.`)) { 
              target.rfZone = z; 
@@ -266,7 +266,7 @@ export function openRFPicker(e, row, evt, badge, context) {
       const i = document.createElement('div'); i.className = 'rf-picker-item';
       i.innerHTML = `<span class="rf-picker-freq">${ch.freq}</span><span class="rf-picker-name">${ch.name}</span>`;
       i.addEventListener('click', () => { 
-        if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+        if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
         context.onSelect(ch, row, evt, badge);
         closeAllPopups(); 
       });

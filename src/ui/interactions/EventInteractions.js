@@ -143,7 +143,7 @@ export const EventInteractions = {
       });
 
       if (newOrder.length > 0) {
-        if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+        if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
         Store.setEvents(currentId, newOrder);
         Store.save();
         EventHub.emit('requestRender');

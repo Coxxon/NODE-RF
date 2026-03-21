@@ -140,7 +140,7 @@ export const TabManager = {
    * Executes page deletion with state updates.
    */
   executeDeletePage(pageId, callbacks) {
-    if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+    if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
     const pages = Store.getPages().filter(p => p.id !== pageId);
     Store.setPages(pages);
     

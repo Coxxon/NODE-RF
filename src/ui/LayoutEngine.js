@@ -292,7 +292,7 @@ export const LayoutEngine = {
     eventResizer.innerHTML = evSpan === 2 ? iconFullEv : iconHalfEv;
     eventResizer.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+      if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
       evt.span = (evt.span === 2) ? 1 : 2;
       if (evt.span === 1) {
          (evt.blocks || []).forEach(b => delete b.side);

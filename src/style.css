@@ -2060,3 +2060,111 @@ body.is-locked .event-block:hover .event-resizer-btn {
 .page-tab-wrapper .view-tab {
   padding-right: 16px !important; /* Reset padding since 'X' is gone */
 }
+
+/* ---------------------------------------------------------------
+   V1.4.4 - Split-View Export & A4 Preview
+--------------------------------------------------------------- */
+.print-manager-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg-color);
+  overflow: hidden;
+}
+
+.print-manager-controls {
+  padding: 24px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.print-manager-preview {
+  background: #2a2a2a;
+  padding: 40px;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.control-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* A4 Sheet */
+.a4-sheet {
+  background: white;
+  color: black;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  padding: 20mm;
+  box-sizing: border-box;
+  transform-origin: top center;
+  transition: all 0.3s ease;
+  
+  /* Portrait A4 ratio */
+  aspect-ratio: 1 / 1.4142;
+  width: min(95%, calc((100vh - 80px) / 1.4142));
+}
+
+.a4-sheet.landscape {
+  aspect-ratio: 1.4142 / 1;
+  width: min(95%, calc((100vh - 80px) * 1.4142));
+}
+
+/* Style Isolation for Preview */
+#printPreviewArea .a4-sheet * {
+  color: black !important;
+  border-color: #ddd !important;
+  background-color: transparent !important;
+  font-family: serif !important;
+}
+
+#printPreviewArea .a4-sheet .p-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 2px solid black !important;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+#printPreviewArea .a4-sheet .p-title {
+  font-size: 24pt;
+  font-weight: bold;
+  margin: 0;
+}
+
+#printPreviewArea .a4-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+#printPreviewArea .a4-sheet th, 
+#printPreviewArea .a4-sheet td {
+  border: 1px solid #ccc !important;
+  padding: 8px;
+  text-align: left;
+  font-size: 10pt;
+}
+
+#printPreviewArea .a4-sheet th {
+  background-color: #f0f0f0 !important;
+  font-weight: bold;
+}
+
+#printPreviewArea .a4-sheet .hide-notes .col-notes,
+#printPreviewArea .a4-sheet .hide-names .col-name {
+  display: none;
+}
+
