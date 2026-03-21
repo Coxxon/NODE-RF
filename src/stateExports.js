@@ -17,3 +17,5 @@ export const sharedState = {
   isEditMode: false,
   applyEditMode: null, // Will be set by main.js
 };
+
+window.sharedState = sharedState;
