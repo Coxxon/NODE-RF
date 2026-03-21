@@ -6,6 +6,25 @@ import { handleVerticalNavigation } from './utils.js';
 import { sharedState } from './stateExports.js';
 import { initAssignments, saveAssignments, toggleAllEvents, renderPageCanvas, isAnyEventExpanded, getAssignmentState, 
 setAssignmentState, clearAssignments, switchView, getAssignmentsLastView } from './assignments.js';
+import { Store } from './core/Store.js';
+
+// Garde-fou Throttle : Force le snapshot dès qu'on quitte un champ
+document.addEventListener('blur', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+    Store._lastSnapshotTime = 0; 
+  }
+}, true);
+
+// Espace : Undo mot par mot
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ') {
+    const active = document.activeElement;
+    const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+    if (isTyping) {
+      Store._forceNextSnapshot = true;
+    }
+  }
+}, true); // Phase de capture
 import { TemplateDrawer } from './ui/TemplateDrawer.js';
 import { EVENT_PALETTE } from './core/Constants.js';
 
@@ -68,16 +87,48 @@ function buildAutosavePayload() {
 }
 
 let _autosaveTimer = null;
-/** Debounced autosave: writes state snapshot to localStorage ~600ms after last change. */
+
+/** Debounced autosave: writes state snapshot to Store (which handles history & localStorage). */
 function autosave() {
+  if (Store.isRestoring) return; // Don't record history while we are restoring it
   clearTimeout(_autosaveTimer);
   _autosaveTimer = setTimeout(() => {
     try {
-      localStorage.setItem('node_rf_autosave', JSON.stringify(buildAutosavePayload()));
-    } catch (e) { /* quota exceeded, ignore */ }
+      Store.save(buildAutosavePayload());
+    } catch (e) { /* ignore */ }
   }, 600);
 }
 sharedState.requestAutosave = autosave;
+
+/** Restores all local variables from a Store data object. */
+function syncStateFromStore(data) {
+  if (!data) return;
+
+  // Handle full payload (with top-level parsedZones etc.)
+  if (data.parsedZones || data.assignments) {
+    parsedZones     = data.parsedZones     || [];
+    rfStates        = data.rfStates        || {};
+    rfNotes         = data.rfNotes         || {};
+    rfNames         = data.rfNames         || {};
+    customFreqs     = data.customFreqs     || [];
+    customFreqData  = data.customFreqData  || {};
+    activeBackups   = data.activeBackups   || {};
+    reportInfo      = data.reportInfo      || { opName: '', opDate: '', author: '', email: '' };
+    customZoneNames = data.customZoneNames || {};
+    mainZoneOrder   = data.mainZoneOrder   || [];
+    zoneColors      = data.zoneColors      || {};
+
+    if (data.assignments) {
+      setAssignmentState(data.assignments);
+    } else {
+      // Fallback if assignments are at the top level (from Store.data structure)
+      setAssignmentState(data);
+    }
+  } else {
+    // Just assignments
+    setAssignmentState(data);
+  }
+}
 
 /** Restore last autosave from localStorage. Attempts to re-read CSV from disk. */
 function restoreAutosave() {
@@ -1459,3 +1510,68 @@ function positionPopupZone(el, anchor) {
 function closeZonePopups() {
     document.getElementById('__zone-color-picker')?.remove();
 }
+// ─── Undo / Redo Orchestration ──────────────────────────────────────────────
+
+window.addEventListener('keydown', (e) => {
+  const isZ = e.key.toLowerCase() === 'z';
+  const isY = e.key.toLowerCase() === 'y';
+  const isCtrl = e.ctrlKey || e.metaKey;
+
+  if (!isCtrl || (!isZ && !isY)) return;
+
+  // Focus guard: Don't hijack native undo in text fields
+  const active = document.activeElement;
+  const isTextEditing = active && (
+    active.tagName === 'INPUT' || 
+    active.tagName === 'TEXTAREA' || 
+    active.isContentEditable
+  );
+  if (isTextEditing) return;
+
+  e.preventDefault();
+
+  const isRedo = isY || (isZ && e.shiftKey);
+  
+  Store.isRestoring = true; // Block autosaves during this render
+  
+  const newState = isRedo ? Store.redo() : Store.undo();
+
+  if (newState) {
+    const mainContainer = document.querySelector('.main-content') 
+                       || document.querySelector('.content') 
+                       || document.body;
+    const scrollTop = mainContainer ? mainContainer.scrollTop : 0;
+
+    // Synchronisation des données
+    syncStateFromStore(newState);
+
+    const restoredView = Store.__tempRestoredView;
+
+    // Routage inconditionnel basé sur la variable restaurée (Contextual Snapshot)
+    if (restoredView === 'inventory' || !restoredView) {
+        Store.isRestoring = false; // CRUCIAL : Reset synchrone AVANT le switchView
+        
+        if (typeof switchView === 'function') switchView('inventory');
+        if (typeof renderReport === 'function') renderReport();
+        
+        // Réveil des templates
+        if (typeof TemplateDrawer !== 'undefined' && typeof TemplateDrawer.refreshQuickAccess === 'function') {
+            TemplateDrawer.refreshQuickAccess();
+        }
+    } else {
+        // Routage direct vers la page restaurée depuis le snapshot
+        if (typeof switchView === 'function') switchView(restoredView);
+        
+        requestAnimationFrame(async () => {
+            if (mainContainer) mainContainer.scrollTop = scrollTop;
+            Store.isRestoring = false; // Reset APRÈS la stabilisation du DOM
+            
+            if (typeof TemplateDrawer !== 'undefined' && typeof TemplateDrawer.refreshQuickAccess === 'function') {
+                await TemplateDrawer.refreshQuickAccess();
+            }
+        });
+    }
+  } else {
+    Store.isRestoring = false;
+  }
+});
