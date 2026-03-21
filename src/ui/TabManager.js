@@ -17,7 +17,7 @@ export const TabManager = {
     _onSwitchView = callbacks.onSwitchView;
     container.innerHTML = '';
     
-    Store.getPages().forEach(page => {
+    Store.getPages().filter(p => !p.isDeleted).forEach(page => {
       const wrapper = document.createElement('div');
       wrapper.className = 'page-tab-wrapper';
       wrapper.draggable = true;
@@ -130,16 +130,33 @@ export const TabManager = {
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
     
-    const item = document.createElement('div');
-    item.className = 'context-menu-item';
-    item.innerHTML = `
+    // RENAME
+    const renameItem = document.createElement('div');
+    renameItem.className = 'context-menu-item';
+    renameItem.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+      Renommer la page
+    `;
+    renameItem.addEventListener('click', () => {
+      const btn = container.querySelector(`.page-tab-btn[data-page-id="${pageId}"]`);
+      if (btn) this.startRenameTab(btn, callbacks);
+      menu.remove();
+    });
+
+    // DUPLICATE
+    const duplicateItem = document.createElement('div');
+    duplicateItem.className = 'context-menu-item';
+    duplicateItem.innerHTML = `
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
       </svg>
       Dupliquer la page
     `;
-    item.addEventListener('click', () => {
+    duplicateItem.addEventListener('click', () => {
       const newPageId = Store.clonePage(pageId);
       if (newPageId) {
         this.renderPageTabs(container, callbacks);
@@ -147,8 +164,31 @@ export const TabManager = {
       }
       menu.remove();
     });
+
+    // SOFT DELETE
+    const deleteItem = document.createElement('div');
+    deleteItem.className = 'context-menu-item context-menu-item--danger';
+    deleteItem.style.color = '#ef4444';
+    deleteItem.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+      Supprimer la page
+    `;
+    deleteItem.addEventListener('click', () => {
+      if (confirm('Supprimer cette page ? (Annulable avec Ctrl+Z)')) {
+        const nextId = Store.softDeletePage(pageId);
+        this.renderPageTabs(container, callbacks);
+        callbacks.onSwitchView(nextId);
+      }
+      menu.remove();
+    });
     
-    menu.appendChild(item);
+    menu.appendChild(renameItem);
+    menu.appendChild(duplicateItem);
+    menu.appendChild(document.createElement('div')).className = 'dropdown-divider';
+    menu.appendChild(deleteItem);
     document.body.appendChild(menu);
     
     const clickOutside = (e) => {
@@ -173,7 +213,7 @@ export const TabManager = {
     input.type = 'text';
     input.value = page.label;
     input.className = 'view-tab tab-rename-input';
-    input.style.cssText = `border:none;outline:none;background:transparent;font-size:0.78rem;font-weight:500;color:var(--primary);width:${Math.max(120, btnWidth)}px;padding-right:28px;`;
+    input.style.cssText = `border:1px solid var(--primary); outline:none; background:var(--bg-surface); font-size:0.78rem; font-weight:600; color:var(--text-main); width:${Math.max(120, btnWidth)}px; padding: 4px 8px; border-radius: 4px; box-shadow: 0 0 0 3px var(--primary-low-alpha);`;
     
     btn.replaceWith(input);
     input.focus(); 
@@ -183,11 +223,14 @@ export const TabManager = {
     const commit = () => {
       if (committed) return;
       committed = true;
-      page.label = input.value.trim() || page.label;
-      // Re-target the container via the stable DOM ID
+      const newLabel = input.value.trim();
+      if (newLabel && newLabel !== page.label) {
+        page.label = newLabel;
+        Store._forceNextSnapshot = true;
+        callbacks.onSave();
+      }
       const container = document.getElementById('pagesTabGroup');
       this.renderPageTabs(container, callbacks);
-      callbacks.onSave();
     };
     
     input.addEventListener('blur', commit);

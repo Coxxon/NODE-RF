@@ -132,9 +132,10 @@ html, body { overflow: overlay; }
 .menu-wrapper { display: flex; align-items: center; gap: 12px; }
 .dropdown { position: relative; display: inline-block; }
 .dropdown-content {
-  display: none; position: absolute; top: 100%; left: 0; min-width: 200px;
+  display: none; position: fixed;
+  min-width: 200px;
   background-color: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: 6px; box-shadow: var(--shadow); z-index: 2000;
+  border-radius: 6px; box-shadow: var(--shadow); z-index: 9999;
   margin-top: 8px; padding: 6px 0;
   backdrop-filter: blur(10px); background-color: rgba(30,30,30,0.95);
   animation: fadeIn 0.15s ease-out;

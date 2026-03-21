@@ -242,5 +242,26 @@ export const Store = {
     Store._forceNextSnapshot = true;
     Store.save();
     return newPageId;
+  },
+
+  softDeletePage(pageId) {
+    const pages = Store.getPages();
+    const page = pages.find(p => p.id === pageId);
+    if (!page) return;
+
+    // Soft delete
+    page.isDeleted = true;
+    Store.setPages(pages);
+
+    // Routing: Handle deletion of active page
+    if (Store.getCurrentPageId() === pageId) {
+      const remainingPages = pages.filter(p => !p.isDeleted);
+      const nextId = remainingPages[remainingPages.length - 1]?.id || 'inventory';
+      Store.setCurrentPageId(nextId);
+    }
+
+    Store._forceNextSnapshot = true;
+    Store.save();
+    return Store.getCurrentPageId();
   }
 };

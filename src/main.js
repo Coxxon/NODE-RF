@@ -120,6 +120,29 @@ function flattenStoreForSearch() {
       });
     });
   });
+
+  // 2. Coordination Pages (Dynamic)
+  const pages = Store.getPages().filter(p => !p.isDeleted);
+  pages.forEach(page => {
+    const events = Store.getEvents(page.id) || [];
+    events.forEach(evt => {
+       const searchFreq = (evt.frequency || "").replace(/,/g, '.');
+       flat.push({
+         id: evt.id,
+         pageId: page.id,
+         zone: page.label || 'Unnamed Page',
+         group: 'Coordination',
+         subgroup: 'Events',
+         frequency: evt.frequency || "",
+         searchFreq: searchFreq,
+         name: evt.name || "",
+         notes: evt.notes || "",
+         series: evt.series || "",
+         band: evt.band || ""
+       });
+    });
+  });
+
   return flat;
 }
 
@@ -667,6 +690,9 @@ window.addEventListener('drop', (e) => {
 // Dropdown Toggle
 btnFileMenu.addEventListener('click', (e) => {
   e.stopPropagation();
+  const rect = btnFileMenu.getBoundingClientRect();
+  fileDropdown.style.top = `${rect.bottom}px`;
+  fileDropdown.style.left = `${rect.left}px`;
   fileDropdown.classList.toggle('show');
 });
 
