@@ -1988,3 +1988,75 @@ body.is-locked .event-block:hover .event-resizer-btn {
   margin-right: 10px;
   opacity: 0.8;
 }
+
+/* --- Toast System (Glassmorphism) --- */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.toast-bubble {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 300px;
+  pointer-events: auto;
+  animation: toast-slide-up 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.toast-bubble.removing {
+  animation: toast-fade-out 0.3s forwards;
+}
+
+.toast-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  flex-grow: 1;
+}
+
+.toast-undo-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+
+.toast-undo-btn:hover {
+  background: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+@keyframes toast-slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toast-fade-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.9); }
+}
+
+/* --- Tab Cleanup --- */
+.page-tab-wrapper .view-tab {
+  padding-right: 16px !important; /* Reset padding since 'X' is gone */
+}

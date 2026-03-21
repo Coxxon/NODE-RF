@@ -5,8 +5,9 @@ import './style.css';
 import { handleVerticalNavigation } from './utils.js';
 import { sharedState } from './stateExports.js';
 import { initAssignments, saveAssignments, toggleAllEvents, renderPageCanvas, isAnyEventExpanded, getAssignmentState, 
-setAssignmentState, clearAssignments, switchView, getAssignmentsLastView } from './assignments.js';
+setAssignmentState, clearAssignments, switchView, getAssignmentsLastView, renderPageTabs } from './assignments.js';
 import { Store } from './core/Store.js';
+import { ToastManager } from './ui/ToastManager.js';
 
 // ─── UTILS ──────────────────────────────────────────────────────────────────
 function debounce(func, wait) {
@@ -1455,6 +1456,25 @@ initAssignments();
 // Ensure UI state matches shared state
 applyEditMode();
 renderReport();
+ToastManager.init();
+
+document.addEventListener('app:state-restored', () => {
+    // Refresh the entire UI state
+    syncStateFromStore(Store.data.assignments);
+    
+    // Refresh Sidebar Tabs
+    const pagesTabGroup = document.getElementById('pagesTabGroup');
+    if (pagesTabGroup && typeof renderPageTabs === 'function') {
+        renderPageTabs();
+    }
+
+    // Refresh Active View
+    if (document.getElementById('inventoryView').classList.contains('active')) {
+        renderReport();
+    } else {
+        switchView(Store.getCurrentPageId() || 'inventory');
+    }
+});
 
 
 function checkDuplicates() {

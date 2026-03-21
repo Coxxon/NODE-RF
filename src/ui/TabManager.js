@@ -32,40 +32,7 @@ export const TabManager = {
       btn.addEventListener('click', () => callbacks.onSwitchView(page.id));
       btn.addEventListener('dblclick', () => this.startRenameTab(btn, callbacks));
 
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'page-tab-close';
-      closeBtn.title = 'Delete page';
-      closeBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-      
-      closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (closeBtn.dataset.confirmed === 'true') {
-          if (closeBtn.dataset.armed !== 'true') return;
-          callbacks.onDeletePage(page.id);
-        } else {
-          PopupManager.closeAllPopups();
-          closeBtn.dataset.confirmed = 'true';
-          closeBtn.dataset.armed = 'false';
-          closeBtn.innerHTML = 'CONFIRM?';
-          closeBtn.classList.add('confirm-danger');
-          
-          setTimeout(() => { closeBtn.dataset.armed = 'true'; }, 400);
-          
-          const reset = (clickAny) => {
-            if (clickAny.target !== closeBtn) {
-              closeBtn.dataset.confirmed = 'false';
-              closeBtn.dataset.armed = 'false';
-              closeBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-              closeBtn.classList.remove('confirm-danger');
-              document.removeEventListener('mousedown', reset);
-            }
-          };
-          setTimeout(() => document.addEventListener('mousedown', reset), 10);
-        }
-      });
-
       wrapper.appendChild(btn);
-      wrapper.appendChild(closeBtn);
 
       // ─── Drag & Drop Reordering ───────────────────────────────────────────
       wrapper.addEventListener('dragstart', (e) => {
@@ -177,11 +144,18 @@ export const TabManager = {
       Supprimer la page
     `;
     deleteItem.addEventListener('click', () => {
-      if (confirm('Supprimer cette page ? (Annulable avec Ctrl+Z)')) {
-        const nextId = Store.softDeletePage(pageId);
-        this.renderPageTabs(container, callbacks);
-        callbacks.onSwitchView(nextId);
-      }
+      const pageName = page.label || 'Sans titre';
+      const nextId = Store.softDeletePage(pageId);
+      this.renderPageTabs(container, callbacks);
+      callbacks.onSwitchView(nextId);
+      
+      // Notify Toast System
+      document.dispatchEvent(new CustomEvent('app:toast', { 
+          detail: { 
+              message: `Page "${pageName}" supprimée.`,
+              undo: true 
+          } 
+      }));
       menu.remove();
     });
     

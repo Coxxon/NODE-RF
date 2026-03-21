@@ -168,7 +168,7 @@ function getTabCallbacks() {
   };
 }
 
-function renderPageTabs() {
+export function renderPageTabs() {
   TabManager.renderPageTabs(pagesTabGroup, getTabCallbacks());
 }
 
