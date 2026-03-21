@@ -225,31 +225,51 @@ export const TemplateDrawer = {
     return wireframe;
   },
 
-  async refreshQuickAccess() {
-    let templates = [];
-    if (window.templateAPI) {
-      try { templates = await window.templateAPI.getTemplates(); } catch(e){}
-    } else {
-      templates = Store.getTemplates();
-    }
+  /** Strictly synchronous update: uses in-memory Store templates */
+  syncRefreshQuickAccess(wrapper = null) {
+    const templates = Store.getTemplates() || [];
+    console.log('Split Button Templates:', templates);
+    const targets = wrapper ? [wrapper] : document.querySelectorAll('.btn-split-add');
     
-    const btns = document.querySelectorAll('.btn-split-add__quick');
-    btns.forEach((btn) => {
-      const idx = parseInt(btn.dataset.index, 10);
-      const tpl = templates[idx];
-      if (tpl) {
-        btn.style.display = 'flex';
-        btn.title = tpl.name;
-        btn.__templateData = tpl;
-      } else {
-        btn.style.display = 'none';
-        btn.title = '';
-        btn.__templateData = null;
-      }
-    });
+    targets.forEach(container => {
+      const btns = container.querySelectorAll('.btn-split-add__quick');
+      const quickContainer = container.querySelector('.btn-split-add__quick-container');
+      const chevron = container.querySelector('.btn-split-add__chevron');
+      
+      const hasTemplates = templates.length > 0;
 
-    // Reveal the button group once numbers are ready
-    document.querySelectorAll('.btn-split-add').forEach(el => el.classList.add('is-ready'));
+      // Update individual buttons
+      btns.forEach(btn => {
+        const idx = parseInt(btn.dataset.index, 10);
+        const tpl = templates[idx];
+        if (tpl) {
+          btn.style.display = 'flex';
+          btn.title = tpl.name;
+          btn.__templateData = tpl;
+        } else {
+          btn.style.display = 'none';
+          btn.title = '';
+          btn.__templateData = null;
+        }
+      });
+
+      // Layout fallback: if no templates, hide the sub-menu parts but SHOW the main button
+      if (quickContainer) quickContainer.style.display = hasTemplates ? 'flex' : 'none';
+      if (chevron) chevron.style.display = hasTemplates ? 'flex' : 'none';
+
+      // Always reveal the base button
+      container.classList.add('is-ready');
+    });
+  },
+
+  async refreshQuickAccess() {
+    if (window.templateAPI) {
+      try { 
+        const templates = await window.templateAPI.getTemplates(); 
+        Store.setTemplates(templates); // Sync back to store
+      } catch(e){}
+    }
+    this.syncRefreshQuickAccess();
   }
 };
 

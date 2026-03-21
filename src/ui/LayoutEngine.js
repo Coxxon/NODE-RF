@@ -147,7 +147,7 @@ export const LayoutEngine = {
 
     wrapper.append(mainBtn, quickContainer, chevronBtn);
 
-    setTimeout(() => TemplateDrawer.refreshQuickAccess(), 50);
+    TemplateDrawer.syncRefreshQuickAccess(wrapper);
 
     return wrapper;
   },

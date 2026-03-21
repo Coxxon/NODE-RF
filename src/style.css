@@ -219,17 +219,20 @@ body.edit-mode .subgroup-empty { display: block; }
 }
 .zone-container::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; z-index: 10; background: var(--zone-color, #3b82f6); }
 
-details.zone-details summary {
+.zone-accordion__header {
   color: var(--text-main);
   background: var(--header-bg);
   background-image: linear-gradient(rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.04));
   padding: 14px 16px 14px 24px;
-  font-size: 1.15rem; font-weight: 800; cursor: pointer; list-style: none;
+  font-size: 1.15rem; font-weight: 800; cursor: pointer;
   display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid var(--border);
   text-transform: uppercase; letter-spacing: 1px;
 }
-details.zone-details summary span { display: flex; align-items: center; width: 100%; gap: 12px; }
+.zone-accordion__header span { display: flex; align-items: center; width: 100%; gap: 12px; }
+.zone-accordion__content { display: none; }
+.zone-accordion.is-expanded .zone-accordion__content { display: block; }
+.zone-accordion.is-expanded .zone-accordion__header { border-bottom: 1px solid var(--border); }
 .zone-chevron { color: var(--text-muted); opacity: 0.6; flex-shrink: 0; display: flex; align-items: center; transition: transform 0.2s; }
 
 /* Main Zone Renaming */
@@ -568,11 +571,12 @@ body.edit-mode #btnOpenMinimap {
   .zone-container::before { display: none; }
 
 
-  details.zone-details summary { 
+  .zone-accordion__header { 
     background: #f3f4f6 !important; border-bottom: 1.5pt solid #000;
     padding-left: 14px !important; font-size: 11pt; color: black !important;
   }
-  details.zone-details summary span::before { display: none; }
+  .zone-accordion__header span::before { display: none; }
+  .zone-accordion__content { display: block !important; }
   
   .subsection-title { background: #fafafa !important; border-top: 1px solid #ccc; font-size: 7.5pt; color: #555 !important; padding: 2px 14px !important; }
   

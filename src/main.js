@@ -4,7 +4,9 @@
 import './style.css';
 import { handleVerticalNavigation } from './utils.js';
 import { sharedState } from './stateExports.js';
-import { initAssignments, saveAssignments, toggleAllEvents, renderPageCanvas, isAnyEventExpanded, getAssignmentState, setAssignmentState, clearAssignments, switchView, getAssignmentsLastView } from './assignments.js';
+import { initAssignments, saveAssignments, toggleAllEvents, renderPageCanvas, isAnyEventExpanded, getAssignmentState, 
+setAssignmentState, clearAssignments, switchView, getAssignmentsLastView } from './assignments.js';
+import { TemplateDrawer } from './ui/TemplateDrawer.js';
 import { EVENT_PALETTE } from './core/Constants.js';
 
 // DOM Elements
@@ -398,8 +400,8 @@ window.updateGlobalExpandIcon = function() {
   let anyOpen = false;
   
   if (isInventory) {
-    const details = document.querySelectorAll('details.zone-details');
-    anyOpen = Array.from(details).some(d => d.open);
+    const accordions = document.querySelectorAll('.zone-accordion');
+    anyOpen = Array.from(accordions).some(a => a.classList.contains('is-expanded'));
   } else {
     anyOpen = isAnyEventExpanded();
   }
@@ -418,17 +420,17 @@ if (btnToggleExpand) {
     const isInventory = document.getElementById('inventoryView').classList.contains('active');
     
     if (isInventory) {
-      const details = document.querySelectorAll('details.zone-details');
-      const anyOpen = Array.from(details).some(d => d.open);
+      const accordions = document.querySelectorAll('.zone-accordion');
+      const anyOpen = Array.from(accordions).some(a => a.classList.contains('is-expanded'));
       const newState = !anyOpen;
-      details.forEach(d => {
-        const zoneName = d.closest('[data-main-zone]')?.dataset.mainZone;
-        if (d.open !== newState) {
-          d.open = newState;
-        }
-        if (zoneName) zoneOpenState[zoneName] = newState;
+      
+      // Update persistent state for all zones
+      parsedZones.forEach(zone => {
+        zoneOpenState[zone.name] = newState;
       });
-      // Toggle event on details will trigger the icon update
+      
+      // Full re-render to reflect new expanded/collapsed state and icons
+      renderReport();
     } else {
       toggleAllEvents();
     }
@@ -584,7 +586,7 @@ btnSaveSession.addEventListener('click', () => {
 });
 
 // Session Load Logic
-function loadSessionData(jsonString) {
+async function loadSessionData(jsonString) {
   try {
     const data = JSON.parse(jsonString);
     parsedZones = data.parsedZones || [];
@@ -602,6 +604,7 @@ function loadSessionData(jsonString) {
     } else {
       clearAssignments();
     }
+    await TemplateDrawer.refreshQuickAccess();
     fileNameDisplay.textContent = data.fileName || "Session Loaded";
     renderReport();
   } catch (err) {
@@ -664,10 +667,11 @@ function handleFile(file) {
     // Electron provides file.path for files from the filesystem
     currentCsvFilePath = file.path || null;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       clearAssignments();
       parseWWB6CSV(e.target.result);
       renderReport();
+      await TemplateDrawer.refreshQuickAccess();
     };
     reader.readAsText(file);
   } else if (name.endsWith('.json')) {
@@ -829,45 +833,50 @@ function renderReport() {
     }
     zoneDiv.style.setProperty('--zone-color', zoneColors[zone.name]);
     
-    const details = document.createElement('details');
-    details.className = 'zone-details';
-    // Restore saved open state for this zone; default true (open) on first render
-    details.open = (zoneOpenState[zone.name] !== undefined) ? zoneOpenState[zone.name] : true;
-    const summary = document.createElement('summary');
+    const accordion = document.createElement('div');
+    accordion.className = 'zone-accordion';
+    const isExpanded = (zoneOpenState[zone.name] !== undefined) ? zoneOpenState[zone.name] : true;
+    if (isExpanded) accordion.classList.add('is-expanded');
+
+    const header = document.createElement('div');
+    header.className = 'zone-accordion__header';
     let displayedName = customZoneNames[zone.name] || zone.name;
     
     const updateZoneChevron = () => {
-      const chevron = details.open 
+      const expanded = accordion.classList.contains('is-expanded');
+      const chevron = expanded 
         ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>`
         : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"/></svg>`;
       
-      summary.innerHTML = `<span>
+      header.innerHTML = `<span>
           <div class="zone-chevron">${chevron}</div>
           <div class="zone-color-dot" style="width:14px;height:14px;border-radius:50%;background:var(--zone-color);cursor:pointer;flex-shrink:0;"></div>
           <input type="text" class="zone-name-input" data-original-name="${zone.name}" value="${displayedName}" ${!sharedState.isEditMode ? 'readonly tabindex="-1"' : ''}>
       </span>`;
       
-      const colorDot = summary.querySelector('.zone-color-dot');
+      const colorDot = header.querySelector('.zone-color-dot');
       colorDot.addEventListener('click', (e) => {
           e.stopPropagation();
-          e.preventDefault();
           openZoneColorPicker(e, zone.name, colorDot);
       });
+
+      const nameInput = header.querySelector('.zone-name-input');
+      nameInput.addEventListener('click', (e) => e.stopPropagation());
     };
 
     updateZoneChevron();
     
-    // Save state and update icon when user manually toggles
-    details.addEventListener('toggle', () => {
-      zoneOpenState[zone.name] = details.open;
-      updateZoneChevron();
-      window.updateGlobalExpandIcon();
+    header.addEventListener('click', () => {
+        accordion.classList.toggle('is-expanded');
+        zoneOpenState[zone.name] = accordion.classList.contains('is-expanded');
+        updateZoneChevron();
+        window.updateGlobalExpandIcon();
     });
     
-    details.appendChild(summary);
+    accordion.appendChild(header);
     
     const contentDiv = document.createElement('div');
-    contentDiv.className = 'zone-content-wrapper';
+    contentDiv.className = 'zone-accordion__content';
      zone.groups.forEach(group => {
        group.subgroups.forEach(subgroup => {
          // Create a wrapper for the entire subsection to handle conditional visibility
@@ -1090,8 +1099,8 @@ function renderReport() {
          contentDiv.appendChild(subsectionWrapper);
        });
      });
-    details.appendChild(contentDiv);
-    zoneDiv.appendChild(details);
+    accordion.appendChild(contentDiv);
+    zoneDiv.appendChild(accordion);
     reportContainer.appendChild(zoneDiv);
   });
 

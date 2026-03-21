@@ -12,6 +12,7 @@ import { EventInteractions } from './ui/interactions/EventInteractions.js';
 import { BlockInteractions } from './ui/interactions/BlockInteractions.js';
 import { LayoutEngine } from './ui/LayoutEngine.js';
 import { TabManager } from './ui/TabManager.js';
+import { TemplateDrawer } from './ui/TemplateDrawer.js';
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -23,7 +24,9 @@ export function setAssignmentState(data) {
   if (!data) return;
   Store.setPages(data.assignPages || []);
   Store.setEvents(data.assignEvents || {});
-  Store.setTemplates(data.assignTemplates || []);
+  if (data.assignTemplates && data.assignTemplates.length > 0) {
+    Store.setTemplates(data.assignTemplates);
+  }
   Store.setLastView(data.lastView || null);
   
   Store.migrate();
@@ -139,8 +142,9 @@ const pageCanvas    = document.getElementById('pageCanvas');
 // ─── Tab Navigation ───────────────────────────────────────────────────────────
 
 export function isAnyEventExpanded() {
-  const pageEvts = Store.getEvents(Store.getCurrentPageId());
-  return pageEvts.some(ev => !ev.collapsed);
+  const cid = Store.getCurrentPageId();
+  const pageEvts = cid ? Store.getEvents(cid) : [];
+  return (Array.isArray(pageEvts) ? pageEvts : []).some(ev => !ev.collapsed);
 }
 
 export function toggleAllEvents() {
@@ -349,8 +353,9 @@ function saveAsTemplate(evt) {
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
-export function initAssignments() {
+export async function initAssignments() {
   loadAssignments();
+  await TemplateDrawer.refreshQuickAccess();
   renderPageTabs();
   const restoreOn = localStorage.getItem('node_rf_restore_on_startup') === 'true';
   const lastView = Store.getLastView();
