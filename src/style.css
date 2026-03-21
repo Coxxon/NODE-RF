@@ -1944,3 +1944,46 @@ body.is-locked .event-block:hover .event-resizer-btn {
   font-weight: 400; text-transform: none; font-size: 0.68rem;
   width: 100%;
 }
+
+/* --- Custom Context Menu --- */
+.custom-context-menu {
+  position: fixed;
+  z-index: 10000;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  min-width: 180px;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.15s ease-out;
+}
+
+[data-theme="light"] .custom-context-menu {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(12px) saturate(160%) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+}
+
+.context-menu-item {
+  color: var(--text-main);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.context-menu-item:hover {
+  background-color: var(--primary);
+  color: white !important;
+}
+
+.context-menu-item svg {
+  margin-right: 10px;
+  opacity: 0.8;
+}

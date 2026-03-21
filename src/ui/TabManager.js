@@ -113,8 +113,51 @@ export const TabManager = {
         if (placeholder) placeholder.remove();
       });
 
+      wrapper.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.showContextMenu(e.clientX, e.clientY, page.id, container, callbacks);
+      });
+
       container.appendChild(wrapper);
     });
+  },
+
+  showContextMenu(x, y, pageId, container, callbacks) {
+    document.querySelectorAll('.custom-context-menu').forEach(el => el.remove());
+    
+    const menu = document.createElement('div');
+    menu.className = 'custom-context-menu';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    
+    const item = document.createElement('div');
+    item.className = 'context-menu-item';
+    item.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; opacity:0.7;">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      Dupliquer la page
+    `;
+    item.addEventListener('click', () => {
+      const newPageId = Store.clonePage(pageId);
+      if (newPageId) {
+        this.renderPageTabs(container, callbacks);
+        callbacks.onSwitchView(newPageId);
+      }
+      menu.remove();
+    });
+    
+    menu.appendChild(item);
+    document.body.appendChild(menu);
+    
+    const clickOutside = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('mousedown', clickOutside);
+      }
+    };
+    document.addEventListener('mousedown', clickOutside);
   },
 
   /**

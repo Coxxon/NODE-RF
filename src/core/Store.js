@@ -207,5 +207,40 @@ export const Store = {
       this.lastKnownActiveView = this._getActiveView();
       this._lastSnapshotTime = 0;
     } catch(e) { console.warn('Store load failed', e); }
+  },
+
+  clonePage(pageId) {
+    const pages = Store.getPages();
+    const pageIndex = pages.findIndex(p => p.id === pageId);
+    if (pageIndex === -1) return null;
+
+    const originalPage = pages[pageIndex];
+    const newPageId = 'page-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+    const clonedPage = structuredClone(originalPage);
+    
+    clonedPage.id = newPageId;
+    clonedPage.name = (clonedPage.name || 'Page') + ' (Copy)';
+    
+    // Clone events for this page
+    const originalEvents = Store.getEvents(pageId);
+    const clonedEvents = structuredClone(originalEvents);
+    
+    // Generate new IDs for all events in the cloned page to avoid collisions
+    clonedEvents.forEach(evt => {
+      evt.id = 'evt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    });
+
+    // Update all events map
+    const allEvents = Store.getEvents();
+    allEvents[newPageId] = clonedEvents;
+    Store.setEvents(allEvents);
+
+    // Insert new page after original
+    pages.splice(pageIndex + 1, 0, clonedPage);
+    Store.setPages(pages);
+    
+    Store._forceNextSnapshot = true;
+    Store.save();
+    return newPageId;
   }
 };
