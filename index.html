@@ -14,74 +14,88 @@
       <div class="info-modal print-manager-modal">
         <div class="modal-header">
           <h3>Export Report (PDF)</h3>
-          <button class="btn icon-btn close-modal" id="btnClosePrintManager">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-        
-        <p class="info-desc">This information will appear in the header of your PDF export.</p>
-        
-        <div class="info-grid">
-          <div class="info-group">
-            <label for="infoOpName">Operation Name</label>
-            <input type="text" id="infoOpName" placeholder="...">
-          </div>
-          <div class="info-group">
-            <label for="infoOpDate">Operation Date</label>
-            <input type="text" id="infoOpDate" placeholder="...">
-          </div>
-          <div class="info-group">
-            <label for="infoAuthor">Author / Coordinator</label>
-            <input type="text" id="infoAuthor" placeholder="...">
-          </div>
-          <div class="info-group">
-            <label for="infoEmail">Contact Email</label>
-            <input type="text" id="infoEmail" placeholder="...">
+          <div class="modal-header-actions">
+            <button class="btn primary" id="btnGeneratePdf">
+              Export PDF
+            </button>
+            <button class="btn icon-btn close-modal" id="btnClosePrintManager">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
           </div>
         </div>
 
-        <hr class="modal-divider">
+        <div class="modal-body">
+          <div class="export-controls">
+            
+            <div class="info-grid">
+              <div class="info-group">
+                <label for="infoOpName">Operation Name</label>
+                <input type="text" id="infoOpName" placeholder="...">
+              </div>
+              <div class="info-group">
+                <label for="infoOpDate">Operation Date</label>
+                <input type="text" id="infoOpDate" placeholder="...">
+              </div>
+              <div class="info-group">
+                <label for="infoAuthor">Author / Coordinator</label>
+                <input type="text" id="infoAuthor" placeholder="...">
+              </div>
+              <div class="info-group">
+                <label for="infoEmail">Contact Email</label>
+                <input type="text" id="infoEmail" placeholder="...">
+              </div>
+            </div>
 
-        <h4 class="section-subtitle">Zone Order &amp; Pagination</h4>
-        <p class="info-desc mb-2">Drag &amp; drop to reorder. Check "Page break" to force a new page after the zone.</p>
-        
-        <ul id="printZoneList" class="print-zone-list">
-          <!-- Populated by JS -->
-        </ul>
-        
-        <hr class="modal-divider">
+            <hr class="modal-divider">
 
-        <h4 class="section-subtitle">Export Options</h4>
+            <h4 class="section-subtitle">Export Options</h4>
 
-        <div class="export-options">
-          <div class="export-option-group">
-            <span class="export-option-label">Columns to include</span>
-            <div class="export-checkboxes">
-              <label class="export-check-item">
-                <input type="checkbox" id="cbExportName" checked>
-                <span>Name</span>
-              </label>
-              <label class="export-check-item">
-                <input type="checkbox" id="cbExportNotes" checked>
-                <span>Notes</span>
-              </label>
+            <div class="export-options">
+              <div class="export-option-group">
+                <span class="export-option-label">Columns to include</span>
+                <div class="export-checkboxes">
+                  <label class="export-check-item">
+                    <input type="checkbox" id="cbExportName" checked>
+                    <span>Name</span>
+                  </label>
+                  <label class="export-check-item">
+                    <input type="checkbox" id="cbExportNotes" checked>
+                    <span>Notes</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="export-option-group">
+                <span class="export-option-label">Status display</span>
+                <label class="export-check-item export-mode-toggle">
+                  <input type="checkbox" id="cbExportClean" checked>
+                  <div>
+                    <span>Clean export</span>
+                    <span class="export-option-hint">Ignore alerts, mutes and backup assignments</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <hr class="modal-divider">
+
+            <div class="zone-matrix">
+              <div class="zone-matrix-header">
+                <span class="zm-label">Zone Order &amp; Pagination</span>
+                <div class="zm-cols">
+                  <span>Page break</span>
+                  <span>Show<br>Zone</span>
+                </div>
+              </div>
+              <ul id="printZoneList" class="print-zone-list">
+                <!-- Populated by JS -->
+              </ul>
             </div>
           </div>
 
-          <div class="export-option-group">
-            <span class="export-option-label">Status display</span>
-            <label class="export-check-item export-mode-toggle">
-              <input type="checkbox" id="cbExportClean" checked>
-              <div>
-                <span>Clean export</span>
-                <span class="export-option-hint">Ignore alerts, mutes and backup assignments</span>
-              </div>
-            </label>
+          <div class="export-preview-panel">
+            <!-- Iframe preview injected here -->
           </div>
-        </div>
-
-        <div class="info-actions mt-4">
-          <button class="btn primary" id="btnGeneratePdf">Export PDF</button>
         </div>
       </div>
     </div>

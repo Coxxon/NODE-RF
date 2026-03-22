@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('electronFS', {
   invoke: (channel, ...args) => {
     return ipcRenderer.invoke(channel, ...args);
   },
+  
+  previewPDF: () => {
+    return ipcRenderer.invoke('preview-pdf');
+  },
 
   /**
    * Get the native absolute path for a File object (Electron v32+).

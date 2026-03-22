@@ -94,9 +94,14 @@ app.whenReady().then(() => {
   });
 
   // ─── PDF Export ──────────────────────────────────────────────────────────────
-  ipcMain.handle('export-pdf', async (event, options) => {
+let currentPrintDate = '';
+  ipcMain.handle('set-print-date', (e, dateStr) => {
+    currentPrintDate = dateStr;
+  });
+
+  ipcMain.handle('export-pdf', async (event, options = {}) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    const { filePath, canceled } = await dialog.showSaveDialog(win, {
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
       title: 'Export Report as PDF',
       defaultPath: options.defaultFilename || 'RF_Coordination_Report.pdf',
       filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
@@ -109,7 +114,10 @@ app.whenReady().then(() => {
         printBackground: true,
         marginsType: 0,
         pageSize: 'A4',
-        landscape: false
+        landscape: false,
+        displayHeaderFooter: true,
+        headerTemplate: '<div></div>',
+        footerTemplate: `<div style="font-size: 8px; font-family: sans-serif; width: 100%; color: #555; margin-bottom: 5mm; position: relative; border-top: 1px solid #eee; padding-top: 5px;"><span style="position: absolute; left: 10mm;">${currentPrintDate}</span><span style="position: absolute; right: 10mm;"><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
       });
       fs.writeFileSync(filePath, pdfBuffer);
       return { success: true };
@@ -118,7 +126,27 @@ app.whenReady().then(() => {
       return { success: false, error: error.message };
     }
   });
-
+  
+  ipcMain.handle('preview-pdf', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    
+    try {
+      const pdfBuffer = await win.webContents.printToPDF({
+        printBackground: true,
+        marginsType: 0,
+        pageSize: 'A4',
+        landscape: false,
+        displayHeaderFooter: true,
+        headerTemplate: '<div></div>',
+        footerTemplate: `<div style="font-size: 8px; font-family: sans-serif; width: 100%; color: #555; margin-bottom: 5mm; position: relative; border-top: 1px solid #eee; padding-top: 5px;"><span style="position: absolute; left: 10mm;">${currentPrintDate}</span><span style="position: absolute; right: 10mm;"><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
+      });
+      
+      return pdfBuffer.toString('base64');
+    } catch (error) {
+      console.error('Preview PDF failed:', error);
+      return null;
+    }
+  });
   createWindow()
 
   app.on('activate', () => {

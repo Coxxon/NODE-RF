@@ -339,6 +339,262 @@ const infoEmail = document.getElementById('infoEmail');
 
 let zoneOrder = [];
 let zonePageBreaks = {};
+let zoneVisibility = {};
+
+function preparePrintDOM(reportInfo) {
+  Store.isRestoring = true;
+  // Populate Print Header/Footer
+  document.getElementById('printOpName').textContent = reportInfo.opName || '';
+  document.getElementById('printOpDate').textContent = reportInfo.opDate || '';
+  document.getElementById('printAuthor').textContent = reportInfo.author || '';
+  document.getElementById('printEmail').textContent = reportInfo.email || '';
+  
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR');
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const printFooterDate = `Créé le ${dateStr} à ${timeStr}`;
+  document.getElementById('printCreationDate').textContent = printFooterDate;
+
+  if (window.electronFS && typeof window.electronFS.invoke === 'function') {
+    window.electronFS.invoke('set-print-date', printFooterDate);
+  }
+
+  console.log('[HEADER]', {
+    opName: document.getElementById('printOpName')?.textContent,
+    opDate: document.getElementById('printOpDate')?.textContent,
+    author: document.getElementById('printAuthor')?.textContent
+  });
+
+  // Apply export options as body classes
+  const hideName  = !document.getElementById('cbExportName')?.checked;
+  const hideNotes = !document.getElementById('cbExportNotes')?.checked;
+  const cleanMode = document.getElementById('cbExportClean')?.checked;
+
+  document.body.classList.toggle('print-hide-name',  hideName);
+  document.body.classList.toggle('print-hide-notes', hideNotes);
+  document.body.classList.toggle('print-clean',      cleanMode);
+
+  document.querySelectorAll('tbody').forEach(tbody => {
+    const visibleRows = Array.from(tbody.querySelectorAll('tr'))
+      .filter(tr => tr.style.display !== 'none' && 
+                    (!tr.classList.contains('row-mirror') || 
+                    !document.body.classList.contains('print-clean')));
+    visibleRows.forEach((tr, i) => {
+      tr.classList.remove('row-even', 'row-odd');
+      tr.classList.add(i % 2 === 0 ? 'row-odd' : 'row-even');
+    });
+  });
+
+  // Force all zones expanded for the snapshot/export
+  document.querySelectorAll('.zone-accordion').forEach(a => {
+    a._wasExpanded = a.classList.contains('is-expanded');
+    a.classList.add('is-expanded');
+  });
+  
+  // Backup Original Zone Order
+  const zonesContainer = document.getElementById('reportContainer');
+  if (zonesContainer && !zonesContainer.dataset.originalOrder) {
+    const originalOrder = Array.from(zonesContainer.children)
+      .map(c => {
+        const input = c.querySelector('.zone-name-input');
+        return input ? input.value.trim() : (c.dataset.zone || c.dataset.mainZone);
+      }).filter(Boolean);
+    zonesContainer.dataset.originalOrder = JSON.stringify(originalOrder);
+  }
+
+  // Estimation : 1 page par zone + 1 pour le header
+  // Disabled manual string pagination, relying natively on Electron printToPDF headerFooter templates.
+  // const l = document.querySelectorAll(".zone-container").length;
+  // const d = Math.ceil(l / 3) || 1;
+  document.querySelectorAll(".page-num").forEach(f => {
+    f.textContent = ``;
+  });
+
+  // Apply page-breaks, DOM Reordering, and Visibility according to checkboxes
+  const items = Array.from(document.querySelectorAll('#printZoneList .zone-drag-item'));
+  
+  // DEBUG logs requested by user
+  const debugZones = document.querySelectorAll('[data-zone-id], [data-zone], .zone-details, .zone-container');
+  console.log('[DEBUG] Zones trouvées pour page-break:', debugZones.length, debugZones);
+
+  const orderedZoneNames = items.map(el => el.dataset.zone);
+  console.log('[DEBUG] Ordre zones pour preview:', orderedZoneNames);
+
+  items.forEach(item => {
+    const zoneName = item.dataset.zone;
+    const hasBreak = item.querySelector('input.cb-page-break')?.checked;
+    const isVisible = item.querySelector('input.cb-zone-visible')?.checked !== false;
+    
+    // Find matching zone container in the report
+    const zoneContainers = Array.from(document.querySelectorAll('.report-container > .zone-container, .report-container > [data-zone], .report-container > .zone-details'));
+    const target = zoneContainers.find(c => {
+      const input = c.querySelector('.zone-name-input');
+      const actualName = input ? input.value.trim() : (c.dataset.zone || c.dataset.mainZone);
+      return actualName === zoneName;
+    });
+    
+    if (target) {
+      if (zonesContainer) zonesContainer.appendChild(target); // Reorder the DOM
+      if (hasBreak) target.classList.add('force-page-break');
+      else target.classList.remove('force-page-break');
+      
+      target.style.display = isVisible ? '' : 'none';
+    }
+  });
+
+  // Remplace chaque backup-select par un span texte pour le PDF
+  document.querySelectorAll('.backup-select').forEach(sel => {
+    const selected = sel.options[sel.selectedIndex];
+    const freqText = selected && selected.value ? selected.text : '--';
+    const span = document.createElement('span');
+    span.className = 'backup-freq-print';
+    span.textContent = freqText;
+    span.dataset.replacedSelect = 'true';
+    sel.parentNode.insertBefore(span, sel);
+    sel.style.display = 'none';
+  });
+}
+
+function restorePrintDOM() {
+  document.body.classList.remove('print-hide-name', 'print-hide-notes', 'print-clean');
+  
+  document.querySelectorAll('tbody tr').forEach(tr => {
+    tr.classList.remove('row-even', 'row-odd');
+  });
+
+  document.querySelectorAll('.zone-accordion').forEach(a => {
+    if (a._wasExpanded === false) a.classList.remove('is-expanded');
+    delete a._wasExpanded;
+  });
+
+  // Store.isRestoring logic continues...
+
+  // Restore Original Zone Order
+  const zonesContainer = document.getElementById('reportContainer');
+  if (zonesContainer && zonesContainer.dataset.originalOrder) {
+    try {
+      const originalOrder = JSON.parse(zonesContainer.dataset.originalOrder);
+      originalOrder.forEach(zoneName => {
+        const zoneContainers = Array.from(zonesContainer.querySelectorAll('.zone-container, [data-zone], .zone-details'));
+        const target = zoneContainers.find(c => {
+          const input = c.querySelector('.zone-name-input');
+          const actualName = input ? input.value.trim() : (c.dataset.zone || c.dataset.mainZone);
+          return actualName === zoneName;
+        });
+        if (target) zonesContainer.appendChild(target);
+      });
+    } catch (e) {
+      console.error('Failed to restore original zone order', e);
+    }
+    delete zonesContainer.dataset.originalOrder;
+  }
+  
+  // Restore Zone visibility
+  document.querySelectorAll('.zone-container, [data-zone], .zone-details').forEach(z => z.style.display = '');
+
+  // Nettoie les spans de preview factices et restaure les selects
+  document.querySelectorAll('[data-replaced-select]').forEach(span => span.remove());
+  document.querySelectorAll('.backup-select').forEach(sel => sel.style.display = '');
+
+  Store.isRestoring = false;
+}
+
+let previewDebounceTimer = null;
+async function refreshExportPreview() {
+  console.log('[PREVIEW] refreshExportPreview triggered');
+  const panel = document.querySelector('.export-preview-panel');
+  const modal = document.getElementById('printManagerOverlay');
+  if (!panel) return;
+
+  // Non-destructive loading overlay
+  let loader = panel.querySelector('#preview-loader');
+  if (!loader) {
+    loader = document.createElement('div');
+    loader.id = 'preview-loader';
+    loader.style.cssText = `
+      position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 13px; z-index: 10;
+    `;
+    loader.textContent = 'Updating...';
+    panel.style.position = 'relative';
+    panel.appendChild(loader);
+  }
+
+  const rInfo = {
+    opName: infoOpName.value,
+    opDate: infoOpDate.value,
+    author: infoAuthor.value,
+    email: infoEmail.value
+  };
+
+  preparePrintDOM(rInfo);
+  console.log('[PREVIEW] refreshExportPreview() called - Generating PDF...');
+  await new Promise(r => setTimeout(r, 150));
+
+  try {
+    if (window.electronFS && typeof window.electronFS.previewPDF === 'function') {
+      const base64 = await window.electronFS.previewPDF();
+      
+      restorePrintDOM();
+      
+      // Safety: Ensure modal is still considered active/open
+      if (modal) modal.classList.add('active');
+
+      if (!base64) {
+        if (loader) loader.textContent = 'Preview failed';
+        return;
+      }
+
+      // Convert base64 to Blob URL to prevent caching
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Met à jour l'iframe existante OU en crée une nouvelle
+      let iframe = panel.querySelector('iframe');
+      
+      // Révoque l'ancien Blob URL pour libérer la mémoire
+      if (iframe && iframe.dataset.blobUrl) {
+        URL.revokeObjectURL(iframe.dataset.blobUrl);
+      }
+
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.style.cssText = `
+          width: 100%; height: 100%; border: none; 
+          display: block; background: #f4f4f4; border-radius: 4px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        `;
+        panel.appendChild(iframe);
+      }
+      
+      iframe.dataset.blobUrl = blobUrl;
+      iframe.src = blobUrl + '#toolbar=0';
+      
+      // Cleanup loader
+      loader.remove();
+    }
+  } catch (err) {
+    console.error("Preview failed:", err);
+    panel.querySelector('#preview-loader')?.remove();
+    if (modal) {
+      modal.classList.add('active');
+    }
+    restorePrintDOM();
+    panel.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">Preview failed: ' + err.message + '</div>';
+  }
+}
+
+function debouncedPreview(delay = 2000) {
+  clearTimeout(previewDebounceTimer);
+  previewDebounceTimer = setTimeout(refreshExportPreview, delay);
+}
+
 
 function openPrintManager() {
   if (parsedZones.length === 0 && customFreqs.length === 0) {
@@ -369,16 +625,17 @@ function openPrintManager() {
     li.dataset.zone = zoneName;
     
     const isChecked = zonePageBreaks[zoneName] ? 'checked' : '';
+    const isVisibleCheck = zoneVisibility[zoneName] !== false ? 'checked' : '';
     
     li.innerHTML = `
       <div class="zone-drag-handle">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-align-justify"><path d="M3 12h18"/><path d="M3 18h18"/><path d="M3 6h18"/></svg>
         <span>${zoneName}</span>
       </div>
-      <label class="zone-page-break">
-        Page break 
-        <input type="checkbox" class="cb-page-break" ${isChecked}>
-      </label>
+      <div class="zone-controls">
+        <span class="cb-wrap"><input type="checkbox" class="cb-page-break" ${isChecked}></span>
+        <span class="cb-wrap"><input type="checkbox" class="cb-zone-visible" ${isVisibleCheck}></span>
+      </div>
     `;
 
     // Drag events
@@ -389,64 +646,135 @@ function openPrintManager() {
     li.addEventListener('dragleave', handleDragLeave);
     li.addEventListener('dragend', handleDragEnd);
 
-    // Checkbox event
+    // Checkbox events
     li.querySelector('.cb-page-break').addEventListener('change', (e) => {
       zonePageBreaks[zoneName] = e.target.checked;
+    });
+    li.querySelector('.cb-zone-visible').addEventListener('change', (e) => {
+      zoneVisibility[zoneName] = e.target.checked;
     });
 
     printZoneList.appendChild(li);
   });
 
   printManagerOverlay.classList.add('active');
+
+  // Attachment and reconnection of listeners (only once)
+  if (!infoOpName.dataset.listenerAttached) {
+    console.log('[PREVIEW] Attaching listeners to Export controls...');
+    
+    // Text fields - 2 seconds (frappe continue)
+    infoOpName.addEventListener('input', () => debouncedPreview(2000));
+    infoOpDate.addEventListener('input', () => debouncedPreview(2000));
+    infoAuthor.addEventListener('input', () => debouncedPreview(2000));
+    infoEmail.addEventListener('input', () => debouncedPreview(2000));
+
+    // Checkboxes columns & Clean export - 500ms (action ponctuelle)
+    ['cbExportName', 'cbExportNotes', 'cbExportClean'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', () => {
+          console.log(`[PREVIEW] Checkbox ${id} change detected`);
+          debouncedPreview(500);
+        });
+      }
+    });
+
+    // Zone List delegation (for dynamically generated checkboxes)
+    printZoneList.addEventListener('change', (e) => {
+      if (e.target.classList.contains('cb-page-break')) {
+        console.log('[PREVIEW] Zone page-break checkbox change detected');
+        debouncedPreview(500);
+      } else if (e.target.classList.contains('cb-zone-visible')) {
+        console.log('[PREVIEW] Zone visibility checkbox change detected');
+        debouncedPreview(500);
+      }
+    });
+
+    infoOpName.dataset.listenerAttached = 'true';
+    console.log('[PREVIEW] All listeners attached.');
+  }
+
+  refreshExportPreview();
 }
 
 function closePrintManager() {
+  if (Store.isRestoring) return;
   printManagerOverlay.classList.remove('active');
 }
 
 // Drag & Drop specific logic for the list
 let draggedItem = null;
+let dragPlaceholder = null;
 
 function handleDragStart(e) {
   draggedItem = this;
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/html', this.innerHTML);
+  
+  dragPlaceholder = document.createElement('li');
+  dragPlaceholder.className = 'zone-drag-placeholder';
+  dragPlaceholder.style.cssText = `
+    height: 2px;
+    background: var(--primary);
+    border-radius: 2px;
+    margin: 0 12px;
+    pointer-events: none;
+    list-style: none;
+  `;
+  
   setTimeout(() => this.classList.add('dragging'), 0);
 }
 
 function handleDragOver(e) {
-  if (e.preventDefault) { e.preventDefault(); }
-  e.dataTransfer.dropEffect = 'move';
-  return false;
+  e.preventDefault();
+  const target = e.currentTarget;
+  const rect = target.getBoundingClientRect();
+  const midpoint = rect.top + rect.height / 2;
+  
+  if (e.clientY < midpoint) {
+    if (target.parentNode) target.parentNode.insertBefore(dragPlaceholder, target);
+  } else {
+    if (target.parentNode) target.parentNode.insertBefore(dragPlaceholder, target.nextSibling);
+  }
 }
 
 function handleDragEnter(e) { this.classList.add('over'); }
 function handleDragLeave(e) { this.classList.remove('over'); }
 
 function handleDrop(e) {
+  if (dragPlaceholder) dragPlaceholder.remove();
   if (e.stopPropagation) { e.stopPropagation(); }
   if (draggedItem !== this) {
     const list = document.getElementById('printZoneList');
-    const items = Array.from(list.children);
+    const items = Array.from(list.children).filter(child => child.classList.contains('zone-drag-item'));
     const draggedIndex = items.indexOf(draggedItem);
     const targetIndex = items.indexOf(this);
 
-    if (draggedIndex < targetIndex) {
-      list.insertBefore(draggedItem, this.nextSibling);
-    } else {
-      list.insertBefore(draggedItem, this);
+    if (draggedIndex > -1 && targetIndex > -1) {
+      if (draggedIndex < targetIndex) {
+        list.insertBefore(draggedItem, this.nextSibling);
+      } else {
+        list.insertBefore(draggedItem, this);
+      }
+      // Re-trigger preview after reordering
+      debouncedPreview(500);
     }
   }
   return false;
 }
 
 function handleDragEnd(e) {
+  if (dragPlaceholder) dragPlaceholder.remove();
   this.classList.remove('dragging');
   document.querySelectorAll('.zone-drag-item').forEach(item => item.classList.remove('over'));
 }
 
-btnPrint.addEventListener('click', openPrintManager);
+
+
 btnClosePrintManager.addEventListener('click', closePrintManager);
+btnPrint.addEventListener('click', openPrintManager);
+// Note: individual Export listeners moved inside openPrintManager for better stability
 
 btnGeneratePdf.addEventListener('click', () => {
   // Save global infos
@@ -455,56 +783,16 @@ btnGeneratePdf.addEventListener('click', () => {
   reportInfo.author = infoAuthor.value;
   reportInfo.email = infoEmail.value;
 
-  // Reorder DOM based on List
-  const reportContainer = document.getElementById('reportContainer');
-  const items = Array.from(printZoneList.children);
-  
-  items.forEach(item => {
-    const zoneName = item.dataset.zone;
-    const zoneContainers = Array.from(document.querySelectorAll('.report-container > .zone-container'));
-    const targetContainer = zoneContainers.find(c => {
-      const input = c.querySelector('summary .zone-name-input');
-      return (input ? input.value.trim() : c.dataset.mainZone) === zoneName;
-    });
-    
-    if (targetContainer) {
-      reportContainer.appendChild(targetContainer);
-      if (zonePageBreaks[zoneName]) {
-        targetContainer.classList.add('force-page-break');
-      } else {
-        targetContainer.classList.remove('force-page-break');
-      }
-    }
-  });
+  // Populate Print Header/Footer, Classes, and Zone Order
+  preparePrintDOM(reportInfo);
 
-  // Populate Print Header/Footer
-  document.getElementById('printOpName').textContent = reportInfo.opName || '';
-  document.getElementById('printOpDate').textContent = reportInfo.opDate || '';
-  document.getElementById('printAuthor').textContent = reportInfo.author || '';
-  document.getElementById('printEmail').textContent = reportInfo.email || '';
+  closePrintManager();
   
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR');
-  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  document.getElementById('printCreationDate').textContent = `Créé le ${dateStr} à ${timeStr}`;
-
-  // Apply export options as body classes
-  const hideName  = !document.getElementById('cbExportName')?.checked;
-  const hideNotes = !document.getElementById('cbExportNotes')?.checked;
-  const cleanMode = document.getElementById('cbExportClean')?.checked;
-
-  document.body.classList.toggle('print-hide-name',  hideName);
-  document.body.classList.toggle('print-hide-notes', hideNotes);
-  document.body.classList.toggle('print-clean',      cleanMode);
-
-  closePrintManager();
+  
   setTimeout(async () => {
-    // Force all zones open for printing
-    const allDetails = Array.from(document.querySelectorAll('details.zone-details'));
-    const prevOpenStates = allDetails.map(d => d.open);
-    allDetails.forEach(d => { d.open = true; });
-
-    // Small delay to let browser render the newly opened content
+    // Small delay to let browser render
     setTimeout(async () => {
       if (window.electronFS && typeof window.electronFS.invoke === 'function') {
         const defaultFilename = `Report_${reportInfo.opName.replace(/\s+/g, '_') || 'Coordination'}_${dateStr.replace(/\//g, '-')}.pdf`;
@@ -519,8 +807,7 @@ btnGeneratePdf.addEventListener('click', () => {
       } else {
         alert("Erreur de connexion interne. Veuillez redémarrer l'application.");
       }
-      allDetails.forEach((d, i) => { d.open = prevOpenStates[i]; });
-      document.body.classList.remove('print-hide-name', 'print-hide-notes', 'print-clean');
+      restorePrintDOM();
     }, 250);
   }, 300);
 });
@@ -964,9 +1251,9 @@ function renderReport(filteredItems = null) {
     }
 
     renderZones.forEach(zone => {
-      let obsGroup = zone.groups.find(g => g.name.includes('Observations'));
+      let obsGroup = zone.groups.find(g => g.name.includes('Observations') || g.name.toLowerCase().includes('manual'));
       if (!obsGroup) {
-        obsGroup = { name: 'Observations', subgroups: [{ name: 'Divers / Manuel', rows: [] }] };
+        obsGroup = { name: 'Manual frequencies', subgroups: [{ name: '', rows: [] }] };
         zone.groups.push(obsGroup);
       }
     });
@@ -977,7 +1264,7 @@ function renderReport(filteredItems = null) {
       
       let targetGroup = targetZone.groups.find(g => g.name === cf.groupName);
       if (!targetGroup) {
-        targetGroup = { name: cf.groupName || 'Manual Observations', subgroups: [] };
+        targetGroup = { name: cf.groupName || 'MANUAL', subgroups: [] };
         targetZone.groups.push(targetGroup);
       }
       
@@ -1072,24 +1359,32 @@ function renderReport(filteredItems = null) {
          subsectionWrapper.className = 'subsection-container';
          if (subgroup.rows.length === 0) subsectionWrapper.classList.add('subgroup-empty');
 
-         const subTitle = document.createElement('div');
-         subTitle.className = 'subsection-title';
-         subTitle.textContent = `${group.name} — ${subgroup.name}`;
-         subsectionWrapper.appendChild(subTitle);
+          const subTitle = document.createElement('div');
+          subTitle.className = 'subsection-title';
+          let titleText = group.name;
+          if (group.name && subgroup.name) titleText += ` — ${subgroup.name}`;
+          else if (subgroup.name) titleText = subgroup.name;
+          subTitle.textContent = titleText;
+          subsectionWrapper.appendChild(subTitle);
          
          const table = document.createElement('table');
          const thead = document.createElement('thead');
         
         let thHtml = `<tr>`;
-        if (show.Series) thHtml += `<th>Model</th>`;
-        if (show.Band) thHtml += `<th style="width:80px">Band</th>`;
-        thHtml += `<th style="width:150px">Frequency</th>`;
+        if (show.Series) thHtml += `<th class="th-model">Model</th>`;
+        if (show.Band) thHtml += `<th class="th-band" style="width:80px">Band</th>`;
+        thHtml += `<th class="th-freq" style="width:150px">Frequency</th>`;
         thHtml += `<th class="th-name col-Name">Name</th><th class="col-Status">STATUS</th><th class="th-notes col-Notes">NOTES</th></tr>`;
         thead.innerHTML = thHtml;
         table.appendChild(thead);
         
         const tbody = document.createElement('tbody');
+        let zebraIdx = 0;      // For standard zebra (includes mirrors)
+        let cleanZebraIdx = 0; // For clean zebra (excludes mirrors)
+
         subgroup.rows.forEach(r => {
+          zebraIdx++;
+          cleanZebraIdx++;
           
           let currentStatus = rfStates[r.id] || 0;
           let isMirror = false;
@@ -1110,6 +1405,17 @@ function renderReport(filteredItems = null) {
           if (r.isCustom) tr.classList.add('row-custom');
           if (isAssignedBackup) tr.classList.add('status-backup');
           else if (currentStatus > 0) tr.classList.add(stateClasses[currentStatus]);
+
+          // Manual Zebra Assignment
+          if (zebraIdx % 2 === 0) tr.classList.add('row-even');
+          if (cleanZebraIdx % 2 === 0) tr.classList.add('zebra-clean-even');
+
+          if (group.name.toLowerCase().includes('backup')) {
+            const isUsedAsBackup = Object.values(activeBackups).includes(r.id);
+            if (isUsedAsBackup) {
+              tr.classList.add('status-backup-used');
+            }
+          }
 
         let tdHtml = '';
           if (show.Series) {
@@ -1153,13 +1459,36 @@ function renderReport(filteredItems = null) {
           tdHtml += `<td class="col-Notes"><input type="text" class="row-input note-input" value="${savedNote}" placeholder="" data-id="${r.id}" ${isAssignedBackup?'disabled':''}></td>`;
 
           tr.innerHTML = tdHtml;
+          
+          if (r.isCustom && sharedState.isEditMode) {
+            const delBtn = document.createElement('div');
+            delBtn.className = 'edit-only-action delete-row-btn';
+            delBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+            delBtn.title = 'Delete manual frequency';
+            delBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              customFreqs = customFreqs.filter(cf => cf.id !== r.id);
+              if (customFreqData[r.id]) delete customFreqData[r.id];
+              renderReport();
+              autosave();
+            });
+            // Append to the last cell instead of the TR to avoid breaking table layout
+            const lastTd = tr.querySelector('.col-Notes');
+            if (lastTd) lastTd.appendChild(delBtn);
+          }
+          
           tbody.appendChild(tr);
           
           // Mirror logic creation
-          let isEligibleForBackup = !group.name.toLowerCase().includes('backup') && !group.name.toLowerCase().includes('observations');
+          let isEligibleForBackup = !group.name.toLowerCase().includes('backup') && 
+                                   !group.name.toLowerCase().includes('observations') &&
+                                   !group.name.toLowerCase().includes('manual');
           if (currentStatus === 2 && isEligibleForBackup) {
+             zebraIdx++; // Increment for standard view zebra
              const trMirror = document.createElement('tr');
              trMirror.className = 'row-mirror status-backup';
+             if (zebraIdx % 2 === 0) trMirror.classList.add('row-even');
+             // No cleanZebraIdx increment here: mirrors are hidden in clean mode
              
              let backupId = activeBackups[r.id];
              let backupData = null;
@@ -1182,7 +1511,7 @@ function renderReport(filteredItems = null) {
                   if (z.name !== zone.name) return; // Must be in same zone
                   
                   z.groups.forEach(g => {
-                      if(g.name.includes('Backup') || g.name.includes('Manual')) {
+                      if(g.name.includes('Backup') || g.name.toLowerCase().includes('manual')) {
                           g.subgroups.forEach(sg => {
                              sg.rows.forEach(br => {
                                  // Must match series and band
@@ -1210,18 +1539,16 @@ function renderReport(filteredItems = null) {
              let mHtml = '';
              let firstCellPadding = 'class="mirror-indent"';
              
-             if (show.Series) mHtml += `<td ${firstCellPadding}>${backupData ? backupData.series : '--'}</td>`;
-             if (show.Band) mHtml += `<td ${!show.Series ? firstCellPadding : ''}>${backupData ? backupData.band : '--'}</td>`;
-             
-             // The frequency column now holds the dropdown selector
-             mHtml += `<td ${(!show.Series && !show.Band) ? firstCellPadding : ''}>${sHtml}</td>`;
+             if (show.Series) mHtml += `<td class="col-Model" ${firstCellPadding}>${backupData?.series ?? '--'}</td>`;
+             if (show.Band) mHtml += `<td class="col-Band" ${!show.Series ? firstCellPadding : ''}>${backupData?.band ?? '--'}</td>`;
+             mHtml += `<td class="col-Frequency" ${(!show.Series && !show.Band) ? firstCellPadding : ''}>${sHtml}</td>`;
              
              if (backupData) {
-                 mHtml += `<td><div class="mirror-label">${currentName}</div></td>`;
+                 mHtml += `<td class="col-Name"><div class="mirror-label">${currentName}</div></td>`;
                  mHtml += `<td class="col-Status"></td>`;
                  mHtml += `<td class="col-Notes"><span class="mirror-note">${savedNote}</span></td>`;
              } else {
-                 mHtml += `<td></td><td class="col-Status"></td><td class="col-Notes"></td>`;
+                 mHtml += `<td class="col-Name"></td><td class="col-Status"></td><td class="col-Notes"></td>`;
              }
              
              trMirror.innerHTML = mHtml;
@@ -1276,7 +1603,7 @@ function renderReport(filteredItems = null) {
         let btnLabel = `+ Add frequency to ${group.name}`;
         if (group.name.includes('Active')) btnLabel = `+ Add active frequency`;
         else if (group.name.includes('Backup')) btnLabel = `+ Add backup frequency`;
-        else if (group.name.includes('Manual')) btnLabel = `+ Add note / manual`;
+        else if (group.name.toLowerCase().includes('manual')) btnLabel = `+ Add manual frequency`;
         
         addTd.innerHTML = `<span>${btnLabel}</span>`;
         addTr.appendChild(addTd);
