@@ -11,6 +11,11 @@ const SWAP_COOLDOWN = 80;
 const SCROLL_SPEED = 15;
 const SCROLL_THRESHOLD = 80;
 let scrollInterval = null;
+let lastAnchorEl = null;
+let lastAnchorPos = null;
+let lastCursorInRight = null;
+const DRAG_HYSTERESIS = 8;
+const COL_HYSTERESIS = 48;
 
 const eventPlaceholder = document.createElement('div');
 eventPlaceholder.className = 'event-placeholder';
@@ -38,6 +43,27 @@ function stopAutoScroll() {
 const manualWheel = (e) => {
   window.scrollBy(0, e.deltaY);
 };
+
+function resolveColumn(cursorX, canvasMidX) {
+  if (lastCursorInRight === null) {
+    lastCursorInRight = cursorX > canvasMidX;
+  } else if (!lastCursorInRight && cursorX > canvasMidX + COL_HYSTERESIS) {
+    lastCursorInRight = true;
+  } else if (lastCursorInRight && cursorX < canvasMidX - COL_HYSTERESIS) {
+    lastCursorInRight = false;
+  }
+  return lastCursorInRight;
+}
+
+function resolveEvtPos(el, cursorY) {
+  const r = el.getBoundingClientRect();
+  const mid = r.top + r.height / 2;
+  if (el === lastAnchorEl) {
+    if (lastAnchorPos === 'before') return cursorY > mid + DRAG_HYSTERESIS ? 'after' : 'before';
+    if (lastAnchorPos === 'after')  return cursorY < mid - DRAG_HYSTERESIS ? 'before' : 'after';
+  }
+  return cursorY > mid ? 'after' : 'before';
+}
 
 export const EventInteractions = {
   init(pageCanvas) {
@@ -86,34 +112,74 @@ export const EventInteractions = {
       e.preventDefault();
       lastMouseY = e.clientY;
       e.dataTransfer.dropEffect = 'move';
-      
+
       const allEl = Array.from(pageCanvas.children);
       const blocks = allEl.filter(c => c.classList.contains('event-block') && !c.classList.contains('dragging'));
-      
+      const span = draggedEvt.span || 1;
+
+      const cr = pageCanvas.getBoundingClientRect();
+      const canvasMidX = cr.left + cr.width / 2;
+
       if (blocks.length === 0) {
         pageCanvas.prepend(eventPlaceholder);
-      } else {
+        if (span === 2) {
+          eventPlaceholder.style.gridColumn = '1 / -1';
+        } else {
+          const col = resolveColumn(e.clientX, canvasMidX);
+          eventPlaceholder.style.gridColumn = col ? '2 / 3' : '1 / 2';
+        }
+        return;
+      }
+
+      if (span === 1) {
+        // X+Y aware with column hysteresis: stable column selection, then closest Y
+        const cursorInRight = resolveColumn(e.clientX, canvasMidX);
+
+        const sameColBlocks = blocks.filter(el => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && (r.left + r.width / 2 > canvasMidX) === cursorInRight;
+        });
+
+        const pool = sameColBlocks.length > 0 ? sameColBlocks : blocks;
+
         let closest = null;
         let minDist = Infinity;
-        
-        blocks.forEach(el => {
-          const rect = el.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          const dist = Math.abs(e.clientY - midY);
-          if (dist < minDist) {
-            minDist = dist;
-            closest = el;
-          }
+        pool.forEach(el => {
+          const r = el.getBoundingClientRect();
+          const dist = Math.abs(e.clientY - (r.top + r.height / 2));
+          if (dist < minDist) { minDist = dist; closest = el; }
         });
 
         if (closest) {
-          const rect = closest.getBoundingClientRect();
-          if (e.clientY > rect.top + rect.height / 2) {
-            closest.after(eventPlaceholder);
-          } else {
-            closest.before(eventPlaceholder);
+          const pos = resolveEvtPos(closest, e.clientY);
+          const newGridCol = cursorInRight ? '2 / 3' : '1 / 2';
+          if (closest !== lastAnchorEl || pos !== lastAnchorPos || eventPlaceholder.style.gridColumn !== newGridCol) {
+            lastAnchorEl = closest;
+            lastAnchorPos = pos;
+            if (pos === 'after') closest.after(eventPlaceholder);
+            else closest.before(eventPlaceholder);
+          }
+          eventPlaceholder.style.gridColumn = newGridCol;
+        }
+      } else {
+        // Full-width event: Y-only
+        let closest = null;
+        let minDist = Infinity;
+        blocks.forEach(el => {
+          const rect = el.getBoundingClientRect();
+          const dist = Math.abs(e.clientY - (rect.top + rect.height / 2));
+          if (dist < minDist) { minDist = dist; closest = el; }
+        });
+        if (closest) {
+          const pos = resolveEvtPos(closest, e.clientY);
+          if (closest !== lastAnchorEl || pos !== lastAnchorPos) {
+            lastAnchorEl = closest;
+            lastAnchorPos = pos;
+            if (pos === 'after') closest.after(eventPlaceholder);
+            else closest.before(eventPlaceholder);
           }
         }
+        eventPlaceholder.style.gridColumn = '1 / -1';
       }
     });
 
@@ -121,21 +187,27 @@ export const EventInteractions = {
       if (e.preventDefault) e.preventDefault();
       if (!draggedEvt) return;
 
+      // Assign column side for half-width events based on drop X position
+      if ((draggedEvt.span || 1) === 1) {
+        const cr = pageCanvas.getBoundingClientRect();
+        draggedEvt.side = e.clientX > cr.left + cr.width / 2 ? 'right' : 'left';
+      }
+
       const currentId = Store.getCurrentPageId();
       const pageEvts = Store.getEvents(currentId);
       if (!pageEvts) return;
 
       const children = Array.from(pageCanvas.children);
       const newOrder = [];
-      
+
       children.forEach(child => {
         let eid = null;
-        if (child.classList.contains('event-block')) {
+        if (child.classList.contains('event-block') && !child.classList.contains('dragging')) {
           eid = child.dataset.eventId;
         } else if (child === eventPlaceholder) {
           eid = draggedEvt.id;
         }
-        
+
         if (eid && !newOrder.find(ev => ev.id === eid)) {
             const ev = pageEvts.find(item => item.id === eid);
             if (ev) newOrder.push(ev);
@@ -148,7 +220,7 @@ export const EventInteractions = {
         Store.save();
         EventHub.emit('requestRender');
       }
-      
+
       this.cleanup();
     });
   },
@@ -159,7 +231,11 @@ export const EventInteractions = {
     const rect = el.getBoundingClientRect();
     eventPlaceholder.style.height = rect.height + 'px';
     const span = evt.span || 1;
-    eventPlaceholder.style.gridColumn = `span ${span}`;
+    if (span === 2) {
+      eventPlaceholder.style.gridColumn = '1 / -1';
+    } else {
+      eventPlaceholder.style.gridColumn = (evt.side === 'right') ? '2 / 3' : '1 / 2';
+    }
     lastMouseY = e.clientY;
     
     setTimeout(() => {
@@ -178,6 +254,9 @@ export const EventInteractions = {
 
   cleanup() {
     draggedEvt = null;
+    lastAnchorEl = null;
+    lastAnchorPos = null;
+    lastCursorInRight = null;
     if (eventPlaceholder.parentNode) eventPlaceholder.remove();
     window.removeEventListener('wheel', manualWheel);
     stopAutoScroll();
