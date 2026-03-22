@@ -73,7 +73,7 @@ export const EventInteractions = {
     // 1. Delegated Mousedown for Draggable state
     pageCanvas.addEventListener('mousedown', (e) => {
       const handle = e.target.closest('.event-drag-handle');
-      if (handle) {
+      if (handle && !e.target.closest('.event-child')) {
         const el = handle.closest('.event-block');
         if (el) {
           el.draggable = true;
@@ -85,7 +85,7 @@ export const EventInteractions = {
     // 2. Delegated DragStart
     pageCanvas.addEventListener('dragstart', (e) => {
       const el = e.target.closest('.event-block');
-      if (el && !e.target.closest('.data-block')) { // Only if it's the event block, not an internal block
+      if (el && !e.target.closest('.data-block') && !e.target.closest('.event-child')) { // Only if it's the event block, not an internal block or child
         const eid = el.dataset.eventId;
         const currentId = Store.getCurrentPageId();
         const evt = Store.getEvents(currentId).find(ev => ev.id === eid);
@@ -100,7 +100,7 @@ export const EventInteractions = {
     // 3. Delegated DragEnd
     pageCanvas.addEventListener('dragend', (e) => {
       const el = e.target.closest('.event-block');
-      if (el && !e.target.closest('.data-block')) {
+      if (el && !e.target.closest('.data-block') && !e.target.closest('.event-child')) {
         el.draggable = false;
         console.log('[EventInteractions] Drag ended');
         this.handleDragEnd(el);

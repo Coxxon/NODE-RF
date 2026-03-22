@@ -56,6 +56,12 @@ function ensureDrawer() {
   // Horizontal scroll with mouse wheel
   const listEl = _drawerEl.querySelector('.template-card-list');
   listEl.addEventListener('wheel', (e) => {
+    // If the cursor is over a wireframe with scrollable content, let it scroll vertically
+    const wireframe = e.target.closest('.template-card__wireframe');
+    if (wireframe) {
+      const canScrollV = wireframe.scrollHeight > wireframe.clientHeight;
+      if (canScrollV) return; // native vertical scroll takes over
+    }
     if (e.deltaY !== 0) {
       e.preventDefault(); // Prevent background page from scrolling
       listEl.scrollLeft += e.deltaY;
@@ -189,40 +195,101 @@ export const TemplateDrawer = {
     return card;
   },
 
+  /**
+   * Builds a hierarchical mini-diagram of the template structure.
+   * - Top-level non-sequence blocks → compact chips in a 1 or 2-column grid
+   * - Sequence blocks → expanded containers showing their inner block chips
+   */
   buildWireframe(tpl) {
-    const wireframe = document.createElement('div');
-    wireframe.className = 'template-card__wireframe';
-    
-    // Card logic mirrors event width: span===2 = full (2 columns), else half
+    const wrapper = document.createElement('div');
+    wrapper.className = 'template-card__wireframe';
     const isFullWidth = (tpl.span === 2);
-
     const blocks = tpl.blocks || [];
+
     if (blocks.length === 0) {
-      const emptyWire = document.createElement('div');
-      emptyWire.className = 'template-wire-block template-wire-block--empty';
-      emptyWire.textContent = 'Empty';
-      wireframe.appendChild(emptyWire);
-    } else {
-      blocks.forEach(b => {
-        const meta = BLOCK_META[b.type] || {
-          label: b.type, color: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)'
-        };
-        const wire = document.createElement('div');
-        wire.className = 'template-wire-block';
-        wire.style.background = meta.color;
-        wire.style.borderColor = meta.border;
-
-        if (!isFullWidth) {
-          wire.style.width = '100%';
-        } else {
-          wire.style.width = (b.span === 2 || b.type === 'header') ? '100%' : 'calc(50% - 2px)';
-        }
-
-        wire.textContent = meta.label;
-        wireframe.appendChild(wire);
-      });
+      const empty = document.createElement('div');
+      empty.className = 'twf-empty';
+      empty.textContent = 'Empty';
+      wrapper.appendChild(empty);
+      return wrapper;
     }
-    return wireframe;
+
+    // Walk blocks in order; flush consecutive direct blocks into a grid row
+    // each time a sequence is encountered, then render the sequence container.
+    let pendingDirect = [];
+    const flushDirect = () => {
+      if (pendingDirect.length === 0) return;
+      wrapper.appendChild(this._buildDirectGrid(pendingDirect, isFullWidth));
+      pendingDirect = [];
+    };
+
+    blocks.forEach(b => {
+      if (b.type === 'sequence') {
+        flushDirect();
+        wrapper.appendChild(this._buildSeqWire(b, isFullWidth));
+      } else {
+        pendingDirect.push(b);
+      }
+    });
+    flushDirect();
+
+    return wrapper;
+  },
+
+  /** Renders a row of block chips (direct children, non-sequence). */
+  _buildDirectGrid(blocks, isFullWidth) {
+    const grid = document.createElement('div');
+    grid.className = 'twf-direct-grid' + (isFullWidth ? ' is-full' : '');
+    blocks.forEach(b => {
+      const meta = BLOCK_META[b.type] || {
+        label: b.type, color: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)'
+      };
+      const cell = document.createElement('div');
+      cell.className = 'twf-direct-block';
+      if (b.type === 'header' || (isFullWidth && b.span === 2)) cell.classList.add('is-wide');
+      cell.style.background = meta.color;
+      cell.style.borderColor = meta.border;
+      cell.textContent = meta.label;
+      grid.appendChild(cell);
+    });
+    return grid;
+  },
+
+  /** Renders a sequence block as an expanded container with inner block chips. */
+  _buildSeqWire(seq, parentIsFullWidth) {
+    const container = document.createElement('div');
+    container.className = 'twf-seq-block';
+
+    // Header: always show generic "Sequence" label — no name, no duration
+    const hdr = document.createElement('div');
+    hdr.className = 'twf-seq-header';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'twf-seq-name';
+    nameEl.textContent = 'Sequence';
+    hdr.appendChild(nameEl);
+    container.appendChild(hdr);
+
+    // Inner blocks (shown as chips in a grid)
+    const innerBlocks = seq.blocks || [];
+    if (innerBlocks.length > 0) {
+      const innerGrid = document.createElement('div');
+      innerGrid.className = 'twf-inner-grid' + (parentIsFullWidth ? ' is-full' : '');
+      innerBlocks.forEach(ib => {
+        const meta = BLOCK_META[ib.type] || {
+          label: ib.type, color: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)'
+        };
+        const cell = document.createElement('div');
+        cell.className = 'twf-direct-block twf-inner-block';
+        if (ib.type === 'header' || (parentIsFullWidth && ib.span === 2)) cell.classList.add('is-wide');
+        cell.style.background = meta.color;
+        cell.style.borderColor = meta.border;
+        cell.textContent = meta.label;
+        innerGrid.appendChild(cell);
+      });
+      container.appendChild(innerGrid);
+    }
+
+    return container;
   },
 
   /** Strictly synchronous update: uses in-memory Store templates */
@@ -316,7 +383,7 @@ function _buildCard(tpl) {
 
   // Card width mirrors event width: span===2 = full (2 columns), else half
   const isFullWidth = (tpl.span === 2);
-  card.style.width = isFullWidth ? '290px' : '140px';
+  card.style.width = isFullWidth ? '320px' : '170px';
 
   // ── Header ──
   const cardHeader = document.createElement('div');

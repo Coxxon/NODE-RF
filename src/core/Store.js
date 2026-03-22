@@ -54,8 +54,12 @@ export const Store = {
     const pages = Store.getPages();
     const events = Store.getEvents();
     
-    pages.forEach(p => { if (p.rfZone === undefined) p.rfZone = ''; });
+    pages.forEach(p => {
+      if (p.rfZone === undefined) p.rfZone = '';
+      if (p.date === undefined) p.date = null;
+    });
     Object.keys(events).forEach(pageId => {
+      let colIdx = 0;
       events[pageId].forEach(evt => {
         if (evt.span === undefined) {
           evt.span = (evt.spanFull ? 2 : 1);
@@ -67,6 +71,30 @@ export const Store = {
         if (evt.rfZone !== undefined) delete evt.rfZone;
         if (evt.collapsed === undefined) evt.collapsed = false;
         if (evt.blocks === undefined) evt.blocks = [];
+        // Migrate legacy evt.children[] → evt.blocks type:'sequence' items
+        if (Array.isArray(evt.children)) {
+          if (!evt.blocks) evt.blocks = [];
+          evt.children.forEach(child => {
+            if (!evt.blocks.find(b => b.id === child.id)) {
+              evt.blocks.push({
+                id: child.id,
+                type: 'sequence',
+                name: child.name || '',
+                estimatedDuration: child.estimatedDuration ?? 30,
+                collapsed: child.collapsed ?? false,
+                blocks: child.blocks || []
+              });
+            }
+          });
+          delete evt.children;
+        }
+        // Assign column side for half-width events without an explicit side
+        if (evt.span === 2) {
+          colIdx = 0;
+        } else if (evt.span === 1) {
+          if (evt.side === undefined) evt.side = (colIdx % 2 === 0) ? 'left' : 'right';
+          colIdx++;
+        }
       });
     });
   },
@@ -122,7 +150,7 @@ export const Store = {
                 data: structuredClone(this.lastKnownState || this.data),
                 activeView: this.lastKnownActiveView
             }); // Pousse l'état complet avec contexte UI
-            if (this.past.length > 50) this.past.shift();
+            if (this.past.length > 20) this.past.shift();
             this.future = [];
             this.lastKnownState = structuredClone(stateToCompare);
             this.lastKnownActiveView = this._getActiveView();

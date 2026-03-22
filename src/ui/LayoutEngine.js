@@ -18,6 +18,7 @@ import { buildContactBlockBody } from './blocks/variants/ContactBlock.js';
 import { buildFileBlockBody } from './blocks/variants/FileBlock.js';
 
 import { BlockInteractions } from './interactions/BlockInteractions.js';
+import { EventHub } from '../core/EventHub.js';
 
 export const LayoutEngine = {
   /**
@@ -160,7 +161,11 @@ export const LayoutEngine = {
     el.className = 'event-block';
     if (evt.collapsed) el.classList.add('collapsed');
     const span = evt.span || 1;
-    el.style.gridColumn = `span ${span}`;
+    if (span === 2) {
+      el.style.gridColumn = '1 / -1';
+    } else {
+      el.style.gridColumn = (evt.side === 'right') ? '2 / 3' : '1 / 2';
+    }
     el.dataset.eventId = evt.id;
 
     const dragHandle = document.createElement('div');
@@ -172,9 +177,10 @@ export const LayoutEngine = {
     const header = document.createElement('div');
     header.className = 'event-header';
     if (evt.color) {
-      // 10% opacity wash (Hex append '1A')
-      header.style.background = evt.color + '1A';
-      header.style.borderBottom = `1.5px solid ${evt.color}`;
+      // Dark mode: 10% wash ('1A'). Light mode: 22% wash ('38') for same perceived weight.
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      header.style.background = evt.color + (isLight ? '38' : '1A');
+      header.style.borderBottom = `1.5px solid ${evt.color + (isLight ? 'CC' : 'AA')}`;
     }
 
     const collapseBtn = document.createElement('button');
@@ -210,11 +216,12 @@ export const LayoutEngine = {
 
     const nameInput = document.createElement('input');
     nameInput.type = 'text'; nameInput.className = 'event-name-input';
-    nameInput.value = evt.name; nameInput.placeholder = 'Sequence name';
-    nameInput.addEventListener('input', () => { 
-      evt.name = nameInput.value; 
-      callbacks.saveAssignments(); 
-      ConflictManager.checkConflicts(); 
+    nameInput.value = evt.name; nameInput.placeholder = 'Event name';
+    nameInput.addEventListener('input', () => {
+      evt.name = nameInput.value;
+      callbacks.saveAssignments();
+      ConflictManager.checkConflicts();
+      EventHub.emit('scheduleChanged');
     });
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); });
 
@@ -247,6 +254,13 @@ export const LayoutEngine = {
         e.target.value = val;
         evt[key] = val;
         callbacks.saveAssignments(); ConflictManager.checkConflicts();
+        EventHub.emit('scheduleChanged');
+        // Live-update overflow warning (right side of footer)
+        const existingW = el.querySelector('.event-overflow-warning');
+        if (existingW) existingW.remove();
+        const footerEl = el.querySelector('.event-footer');
+        const newW = this.buildOverflowWarning(evt);
+        if (newW && footerEl) footerEl.appendChild(newW);
       });
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') input.blur();
@@ -309,20 +323,33 @@ export const LayoutEngine = {
       PopupManager.openEventContextMenu(e, evt, {
         onDuplicate: callbacks.duplicateEvent,
         onSaveAsTemplate: callbacks.saveAsTemplate,
-        onDelete: callbacks.deleteEvent
-      }); 
+        onDelete: callbacks.deleteEvent,
+        onAddChild: callbacks.createChildEvent
+      });
     });
 
     header.append(collapseBtn, dot, nameInput, conflictDot, timeGroup, eventResizer, menuBtn);
     el.appendChild(header);
 
+    // Body with all blocks, including inline sequences
     const body = document.createElement('div');
     body.className = 'event-body';
-    this.renderBlocks(body, evt, (b, e) => this.buildBlockElement(b, e, callbacks));
+    this.renderBlocks(body, evt, (b, e) => this.buildBlockElement(b, e, callbacks), undefined, callbacks);
     el.appendChild(body);
 
+    // Footer always present with both buttons
     const footer = document.createElement('div');
     footer.className = 'event-footer';
+
+    const addSeqBtn = document.createElement('button');
+    addSeqBtn.className = 'btn-add-sequence';
+    addSeqBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add sequence`;
+    addSeqBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      callbacks.createChildEvent(evt.id);
+    });
+    footer.appendChild(addSeqBtn);
+
     const addBlockBtn = document.createElement('button');
     addBlockBtn.className = 'btn-add-block';
     addBlockBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add block`;
@@ -335,6 +362,9 @@ export const LayoutEngine = {
       });
     });
     footer.appendChild(addBlockBtn);
+    // Overflow warning: inline badge on the right side of the footer
+    const overflowEl = this.buildOverflowWarning(evt);
+    if (overflowEl) footer.appendChild(overflowEl);
     el.appendChild(footer);
 
     return el;
@@ -343,7 +373,7 @@ export const LayoutEngine = {
   /**
    * Builds the DOM for an internal block.
    */
-  buildBlockElement(block, evt, callbacks) {
+  buildBlockElement(block, evt, callbacks, effectiveSpan) {
     const LABELS = { 
       assignment: 'Assignment', 
       note: 'Note', 
@@ -405,7 +435,7 @@ export const LayoutEngine = {
           const importBtn = document.createElement('button');
           importBtn.className = 'header-add-btn';
           importBtn.title = 'Import Local File';
-          importBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`;
+          importBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
           
           const fileInput = document.createElement('input');
           fileInput.type = 'file';
@@ -473,7 +503,8 @@ export const LayoutEngine = {
     const renderer = variantMap[block.type];
     if (!renderer) return document.createElement('div');
 
-    const el = BlockFactory.createBlock(block, evt, (b, e) => renderer(b, e, blockCallbacks), blockCallbacks);
+    const effectiveEvt = effectiveSpan !== undefined ? { ...evt, span: effectiveSpan } : evt;
+    const el = BlockFactory.createBlock(block, effectiveEvt, (b, e) => renderer(b, e, blockCallbacks), blockCallbacks);
     
     // Grid settings
     const span = block.span || (block.type === 'header' ? 2 : 1);
@@ -570,18 +601,19 @@ export const LayoutEngine = {
   /**
    * Segmented rendering for blocks within an event.
    */
-  renderBlocks(body, evt, buildBlockElement) {
+  renderBlocks(body, evt, buildBlockElement, spanOverride, callbacks) {
+    body._evtRef = evt; // stored for drag lookup in BlockInteractions
     BlockInteractions.initEventBody(body, evt);
 
     let currentSegment = null;
     let hideUntilNextHeader = false;
     const blocks = evt.blocks || [];
-    
+
     body.innerHTML = '';
-    
+
     blocks.forEach(block => {
       const isHeader = (block.type === 'header');
-      
+
       if (isHeader) {
         hideUntilNextHeader = !!block.collapsed;
         currentSegment = null;
@@ -593,6 +625,14 @@ export const LayoutEngine = {
 
       if (hideUntilNextHeader) return;
 
+      // Sequence blocks are always full-width inline containers
+      if (block.type === 'sequence') {
+        currentSegment = null;
+        const el = this.buildInlineSequenceElement(block, evt, callbacks, spanOverride ?? evt.span);
+        body.appendChild(el);
+        return;
+      }
+
       const isFull = (block.span === 2);
       
       if (isFull) {
@@ -601,7 +641,7 @@ export const LayoutEngine = {
         if (block.collapsed) el.classList.add('collapsed');
         body.appendChild(el);
       } else {
-        const useDual = (evt.span === 2);
+        const useDual = ((spanOverride ?? evt.span) === 2);
         
         if (!currentSegment) {
           currentSegment = document.createElement('div');
@@ -636,5 +676,351 @@ export const LayoutEngine = {
         }
       }
     });
-  }
+  },
+
+  /**
+   * Builds an inline sequence block (type:'sequence') as a .data-block element.
+   * This allows sequences to be freely interleaved with regular blocks.
+   */
+  buildInlineSequenceElement(seq, parentEvt, callbacks, effectiveSpan) {
+    // Outer wrapper is a .data-block so BlockInteractions handles drag-to-reorder
+    const el = document.createElement('div');
+    el.className = 'data-block sequence-block';
+    if (seq.collapsed) el.classList.add('collapsed');
+    el.dataset.blockId = seq.id;
+    el.draggable = false;
+
+    // Block drag handle — triggers BlockInteractions mousedown listener
+    const blockDragHandle = document.createElement('div');
+    blockDragHandle.className = 'block-drag-handle';
+    el.appendChild(blockDragHandle);
+
+    // Sequence header — more visible than before: dark 10% / light 22%
+    const header = document.createElement('div');
+    header.className = 'event-child-header';
+    if (parentEvt.color) {
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      header.style.background = parentEvt.color + (isLight ? '38' : '1A');
+      header.style.borderBottom = `1px solid ${parentEvt.color + (isLight ? 'CC' : '80')}`;
+    }
+
+    const collapseBtn = document.createElement('button');
+    collapseBtn.className = 'event-collapse-btn';
+    const updateCollapseIcon = () => {
+      collapseBtn.innerHTML = seq.collapsed
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+    };
+    updateCollapseIcon();
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      seq.collapsed = !seq.collapsed;
+      el.classList.toggle('collapsed', seq.collapsed);
+      updateCollapseIcon();
+      callbacks.saveAssignments();
+    });
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'event-child-name-input';
+    nameInput.value = seq.name || '';
+    nameInput.placeholder = 'Sequence name';
+    nameInput.addEventListener('input', () => {
+      seq.name = nameInput.value;
+      callbacks.saveAssignments();
+      EventHub.emit('scheduleChanged');
+    });
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); });
+
+    const durationWrapper = document.createElement('div');
+    durationWrapper.className = 'event-child-duration';
+    const durationInput = document.createElement('input');
+    durationInput.type = 'number';
+    durationInput.className = 'event-child-duration-input';
+    durationInput.value = seq.estimatedDuration ?? 30;
+    durationInput.min = 1;
+    durationInput.title = 'Estimated duration (minutes)';
+    durationInput.addEventListener('input', () => {
+      seq.estimatedDuration = Math.max(1, parseInt(durationInput.value) || 30);
+      callbacks.saveAssignments();
+      EventHub.emit('scheduleChanged');
+      // Live-update overflow warning in the parent event block (right side of footer)
+      const evtBlock = el.closest('.event-block');
+      if (evtBlock) {
+        const existingW = evtBlock.querySelector('.event-overflow-warning');
+        if (existingW) existingW.remove();
+        const footerEl = evtBlock.querySelector(':scope > .event-footer');
+        const newW = this.buildOverflowWarning(parentEvt);
+        if (newW && footerEl) footerEl.appendChild(newW);
+      }
+    });
+    // Fix 3: Enter confirms; focus selects all text
+    durationInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') durationInput.blur(); });
+    durationInput.addEventListener('focus', () => durationInput.select());
+    const durationUnit = document.createElement('span');
+    durationUnit.className = 'event-child-duration-unit';
+    durationUnit.textContent = 'min';
+    durationWrapper.append(durationInput, durationUnit);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'event-child-delete-btn';
+    deleteBtn.title = 'Remove sequence';
+    deleteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      callbacks.deleteChildEvent(parentEvt.id, seq.id);
+    });
+
+    header.append(collapseBtn, nameInput, durationWrapper, deleteBtn);
+    el.appendChild(header);
+
+    // Sequence body (sub-blocks), uses parent's effective span for column layout
+    const body = document.createElement('div');
+    body.className = 'event-body';
+    this.renderBlocks(body, seq, (b) => this.buildBlockElement(b, seq, callbacks, effectiveSpan), effectiveSpan, callbacks);
+    el.appendChild(body);
+
+    // Sequence footer — add block
+    const footer = document.createElement('div');
+    footer.className = 'event-footer';
+    const addBlockBtn = document.createElement('button');
+    addBlockBtn.className = 'btn-add-block';
+    addBlockBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add block`;
+    addBlockBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      PopupManager.openBlockAddMenu(e, seq, addBlockBtn, {
+        generateUID,
+        onSave: callbacks.saveAssignments,
+        onRender: callbacks.renderPageCanvas,
+        recordSnapshot: () => { if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot(); }
+      });
+    });
+    footer.appendChild(addBlockBtn);
+    el.appendChild(footer);
+
+    return el;
+  },
+
+  /**
+   * @deprecated — kept temporarily; use buildInlineSequenceElement instead.
+   * Builds the children container for a parent event (with drag-to-reorder).
+   */
+  buildChildrenContainer(parentEvt, callbacks) {
+    const container = document.createElement('div');
+    container.className = 'event-children-container';
+
+    // Scoped drag-to-reorder state
+    let draggedChildEl = null;
+    let childPlaceholder = null;
+    let _pendingChildDrag = false;
+
+    container.addEventListener('dragstart', (e) => {
+      const childEl = e.target.closest('.event-child');
+      if (!childEl || !_pendingChildDrag) return;
+      _pendingChildDrag = false;
+      draggedChildEl = childEl;
+      e.dataTransfer.effectAllowed = 'move';
+      e.stopPropagation();
+      if (!childPlaceholder) {
+        childPlaceholder = document.createElement('div');
+        childPlaceholder.className = 'event-child-placeholder';
+      }
+      childPlaceholder.style.height = childEl.getBoundingClientRect().height + 'px';
+      setTimeout(() => childEl.classList.add('dragging'), 0);
+    });
+
+    container.addEventListener('dragend', (e) => {
+      const childEl = e.target.closest('.event-child');
+      if (childEl) childEl.classList.remove('dragging');
+      if (childPlaceholder && childPlaceholder.parentNode) childPlaceholder.remove();
+      draggedChildEl = null;
+    });
+
+    container.addEventListener('dragover', (e) => {
+      if (!draggedChildEl) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      const siblings = Array.from(container.querySelectorAll('.event-child:not(.dragging)'));
+      let closest = null, minDist = Infinity;
+      siblings.forEach(el => {
+        const r = el.getBoundingClientRect();
+        const dist = Math.abs(e.clientY - (r.top + r.height / 2));
+        if (dist < minDist) { minDist = dist; closest = el; }
+      });
+      if (closest) {
+        const r = closest.getBoundingClientRect();
+        const pos = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+        if (pos === 'before') closest.before(childPlaceholder);
+        else closest.after(childPlaceholder);
+      } else if (siblings.length === 0) {
+        const footer = container.querySelector('.event-children-footer');
+        if (footer) footer.before(childPlaceholder);
+        else container.appendChild(childPlaceholder);
+      }
+    });
+
+    container.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!draggedChildEl) return;
+      if (childPlaceholder && childPlaceholder.parentNode) {
+        childPlaceholder.replaceWith(draggedChildEl);
+      }
+      // Re-read DOM order → update parentEvt.children
+      const domOrder = Array.from(container.querySelectorAll('.event-child'));
+      const reordered = domOrder.map(el => {
+        const cid = el.dataset.childId;
+        return parentEvt.children.find(c => c.id === cid);
+      }).filter(Boolean);
+      parentEvt.children = reordered;
+      if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
+      callbacks.saveAssignments();
+      draggedChildEl = null;
+    });
+
+    // Build child elements
+    (parentEvt.children || []).forEach(child => {
+      container.appendChild(this.buildChildEventElement(child, parentEvt, callbacks, () => { _pendingChildDrag = true; }));
+    });
+
+    // Overflow warning
+    const overflowEl = this.buildOverflowWarning(parentEvt);
+    if (overflowEl) container.appendChild(overflowEl);
+
+    return container;
+  },
+
+  /**
+   * Builds the DOM for a single child event inside a parent.
+   */
+  buildChildEventElement(child, parentEvt, callbacks, onDragHandleDown) {
+    const el = document.createElement('div');
+    el.className = 'event-child';
+    if (child.collapsed) el.classList.add('collapsed');
+    el.dataset.childId = child.id;
+    el.draggable = false;
+
+    // Child drag handle
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'event-child-drag-handle';
+    el.appendChild(dragHandle);
+    dragHandle.addEventListener('mousedown', () => { el.draggable = true; if (onDragHandleDown) onDragHandleDown(); });
+    el.addEventListener('dragend', () => { el.draggable = false; });
+
+    // Child header — same treatment as sequence header
+    const header = document.createElement('div');
+    header.className = 'event-child-header';
+    if (parentEvt.color) {
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      header.style.background = parentEvt.color + (isLight ? '38' : '1A');
+      header.style.borderBottom = `1px solid ${parentEvt.color + (isLight ? 'CC' : '80')}`;
+    }
+
+    const collapseBtn = document.createElement('button');
+    collapseBtn.className = 'event-collapse-btn';
+    const updateCollapseIcon = () => {
+      collapseBtn.innerHTML = child.collapsed
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+    };
+    updateCollapseIcon();
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      child.collapsed = !child.collapsed;
+      el.classList.toggle('collapsed', child.collapsed);
+      updateCollapseIcon();
+      callbacks.saveAssignments();
+    });
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'event-child-name-input';
+    nameInput.value = child.name;
+    nameInput.placeholder = 'Sequence name';
+    nameInput.addEventListener('input', () => { child.name = nameInput.value; callbacks.saveAssignments(); });
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); });
+
+    // Duration
+    const durationWrapper = document.createElement('div');
+    durationWrapper.className = 'event-child-duration';
+    const durationInput = document.createElement('input');
+    durationInput.type = 'number';
+    durationInput.className = 'event-child-duration-input';
+    durationInput.value = child.estimatedDuration ?? 30;
+    durationInput.min = 1;
+    durationInput.title = 'Estimated duration (minutes)';
+    durationInput.addEventListener('input', () => {
+      child.estimatedDuration = Math.max(1, parseInt(durationInput.value) || 30);
+      callbacks.saveAssignments();
+    });
+    const durationUnit = document.createElement('span');
+    durationUnit.className = 'event-child-duration-unit';
+    durationUnit.textContent = 'min';
+    durationWrapper.append(durationInput, durationUnit);
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'event-child-delete-btn';
+    deleteBtn.title = 'Remove sub-sequence';
+    deleteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      callbacks.deleteChildEvent(parentEvt.id, child.id);
+    });
+
+    header.append(collapseBtn, nameInput, durationWrapper, deleteBtn);
+    el.appendChild(header);
+
+    // Child body (blocks)
+    const body = document.createElement('div');
+    body.className = 'event-body';
+    this.renderBlocks(body, child, (b) => this.buildBlockElement(b, child, callbacks, parentEvt.span), parentEvt.span);
+    el.appendChild(body);
+
+    // Child footer (add block)
+    const footer = document.createElement('div');
+    footer.className = 'event-footer';
+    const addBlockBtn = document.createElement('button');
+    addBlockBtn.className = 'btn-add-block';
+    addBlockBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add block`;
+    addBlockBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      PopupManager.openBlockAddMenu(e, child, addBlockBtn, {
+        generateUID,
+        onSave: callbacks.saveAssignments,
+        onRender: callbacks.renderPageCanvas
+      });
+    });
+    footer.appendChild(addBlockBtn);
+    el.appendChild(footer);
+
+    return el;
+  },
+
+  /**
+   * Builds an overflow warning if child durations exceed the parent time range.
+   */
+  buildOverflowWarning(parentEvt) {
+    if (!parentEvt.startTime || !parentEvt.endTime) return null;
+    const parseTime = (str) => {
+      if (!str) return null;
+      const parts = str.split('h');
+      const h = parseInt(parts[0] || '0');
+      const m = parseInt(parts[1] || '0');
+      return isNaN(h) ? null : h * 60 + (isNaN(m) ? 0 : m);
+    };
+    const start = parseTime(parentEvt.startTime);
+    const end = parseTime(parentEvt.endTime);
+    if (start === null || end === null || end <= start) return null;
+    const parentDuration = end - start;
+    const sequences = (parentEvt.blocks || []).filter(b => b.type === 'sequence');
+    const totalChildDuration = sequences.reduce((s, c) => s + (c.estimatedDuration || 0), 0);
+    if (totalChildDuration <= parentDuration) return null;
+    const warning = document.createElement('div');
+    warning.className = 'event-overflow-warning';
+    warning.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Sequences exceed event duration (${totalChildDuration}min vs ${parentDuration}min)`;
+    return warning;
+  },
+
 };

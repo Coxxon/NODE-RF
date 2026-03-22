@@ -6,14 +6,29 @@ import { EventHub } from '../../core/EventHub.js';
 
 let draggedBlock = null;
 let draggedBlockEvt = null;
+let lastAnchorEl = null;
+let lastAnchorPos = null;
+let _dropOccurred = false;
+let _pageCanvas = null;
+const DRAG_HYSTERESIS = 8;
 
 const blockPlaceholder = document.createElement('div');
 blockPlaceholder.className = 'block-placeholder';
 blockPlaceholder.style.pointerEvents = 'none';
 
+function resolveBlockPos(el, cursorY) {
+  const r = el.getBoundingClientRect();
+  const mid = r.top + r.height / 2;
+  if (el === lastAnchorEl) {
+    if (lastAnchorPos === 'before') return cursorY > mid + DRAG_HYSTERESIS ? 'after' : 'before';
+    if (lastAnchorPos === 'after')  return cursorY < mid - DRAG_HYSTERESIS ? 'before' : 'after';
+  }
+  return cursorY > mid ? 'after' : 'before';
+}
+
 function updatePlaceholderSize(evt, block, context, side) {
   if (!block) return;
-  const isFull = (block.span === 2 || block.type === 'header');
+  const isFull = (block.span === 2 || block.type === 'header' || block.type === 'sequence');
 
   if (isFull) {
     blockPlaceholder.style.width = '100%';
@@ -39,6 +54,7 @@ function updatePlaceholderSize(evt, block, context, side) {
 export const BlockInteractions = {
   init(pageCanvas) {
     if (!pageCanvas) return;
+    _pageCanvas = pageCanvas;
     console.log('[BlockInteractions] Initializing with delegation on', pageCanvas);
 
     // 1. Delegated Mousedown for Draggable state
@@ -59,13 +75,12 @@ export const BlockInteractions = {
       if (el) {
         e.stopPropagation(); // Don't trigger Event drag
         const bid = el.dataset.blockId;
-        const eventEl = el.closest('.event-block');
-        const eid = eventEl?.dataset.eventId;
-        
-        const currentId = Store.getCurrentPageId();
-        const evt = Store.getEvents(currentId).find(ev => ev.id === eid);
+
+        // Use the body's stored event reference — works for both regular and child event bodies
+        const bodyEl = el.closest('.event-body');
+        const evt = bodyEl?._evtRef;
         const block = (evt?.blocks || []).find(b => b.id === bid);
-        
+
         if (block && evt) {
           console.log('[BlockInteractions] Drag started on block:', block.type);
           this.handleDragStart(e, block, evt, el);
@@ -115,10 +130,13 @@ export const BlockInteractions = {
           if (dist < minDist) { minDist = dist; closest = child; }
         });
         if (closest) {
-          const r = closest.getBoundingClientRect();
-          if (e.clientY > r.top + r.height/2) closest.after(blockPlaceholder);
-          else closest.before(blockPlaceholder);
-          
+          const pos = resolveBlockPos(closest, e.clientY);
+          if (closest !== lastAnchorEl || pos !== lastAnchorPos) {
+            lastAnchorEl = closest;
+            lastAnchorPos = pos;
+            if (pos === 'after') closest.after(blockPlaceholder);
+            else closest.before(blockPlaceholder);
+          }
           const isRight = (evt.span === 2 && e.clientX > bodyRect.left + bodyRect.width/2);
           updatePlaceholderSize(evt, draggedBlock, 'body', isRight ? 'right' : 'left');
         }
@@ -131,16 +149,18 @@ export const BlockInteractions = {
   handleDragStart(e, block, evt, el) {
     draggedBlock = block;
     draggedBlockEvt = evt;
+    _dropOccurred = false;
     e.dataTransfer.effectAllowed = 'move';
     const rect = el.getBoundingClientRect();
     blockPlaceholder.style.height = rect.height + 'px';
-    
+
     updatePlaceholderSize(evt, block, 'body', block.side || 'left');
 
     setTimeout(() => {
       el.classList.add('dragging');
+      if (_pageCanvas) _pageCanvas.classList.add('drag-in-progress');
     }, 0);
-    
+
     const body = el.closest('.event-body');
     if (body) body.classList.add('drag-active');
   },
@@ -151,10 +171,14 @@ export const BlockInteractions = {
     
     const isFull = (draggedBlock.span === 2 || draggedBlock.type === 'header');
     if (isFull || el.classList.contains('full-width')) {
-       const rect = el.getBoundingClientRect();
-       if (e.clientY > rect.top + rect.height/2) el.after(blockPlaceholder);
-       else el.before(blockPlaceholder);
-       updatePlaceholderSize(evt, draggedBlock, 'body', draggedBlock.side || 'left');
+      const pos = resolveBlockPos(el, e.clientY);
+      if (el !== lastAnchorEl || pos !== lastAnchorPos) {
+        lastAnchorEl = el;
+        lastAnchorPos = pos;
+        if (pos === 'after') el.after(blockPlaceholder);
+        else el.before(blockPlaceholder);
+      }
+      updatePlaceholderSize(evt, draggedBlock, 'body', draggedBlock.side || 'left');
     }
   },
 
@@ -177,17 +201,26 @@ export const BlockInteractions = {
         if (dist < minDist) { minDist = dist; closest = b; }
       });
       
-      const r = closest.getBoundingClientRect();
-      if (e.clientY > r.top + r.height/2) closest.after(blockPlaceholder);
-      else closest.before(blockPlaceholder);
-      
+      const pos = resolveBlockPos(closest, e.clientY);
+      if (closest !== lastAnchorEl || pos !== lastAnchorPos) {
+        lastAnchorEl = closest;
+        lastAnchorPos = pos;
+        if (pos === 'after') closest.after(blockPlaceholder);
+        else closest.before(blockPlaceholder);
+      }
       updatePlaceholderSize(evt, draggedBlock, 'column', side);
     }
   },
 
   handleDragEnd(el) {
     if (el) el.classList.remove('dragging');
+    const wasAborted = !_dropOccurred;
     this.cleanup();
+    // If the drag was cancelled (no drop), force a re-render to restore any
+    // blocks that became invisible due to collapsed sections during the drag.
+    if (wasAborted) {
+      EventHub.emit('requestRender');
+    }
   },
 
   handleDrop(e, evt) {
@@ -201,7 +234,7 @@ export const BlockInteractions = {
     Array.from(bodyEl.children).forEach(child => {
       if (child === blockPlaceholder) {
         if (draggedBlock) {
-          if (draggedBlock.span === 1 && draggedBlock.type !== 'header') {
+          if (draggedBlock.span === 1 && draggedBlock.type !== 'header' && draggedBlock.type !== 'sequence') {
              draggedBlock.side = (e.clientX > bodyRect.left + bodyRect.width/2) ? 'right' : 'left';
           } else {
              delete draggedBlock.side;
@@ -249,6 +282,7 @@ export const BlockInteractions = {
     if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
     evt.blocks = newBlocks;
     Store.save();
+    _dropOccurred = true;
     EventHub.emit('requestRender');
     this.cleanup();
   },
@@ -256,7 +290,11 @@ export const BlockInteractions = {
   cleanup() {
     draggedBlock = null;
     draggedBlockEvt = null;
+    lastAnchorEl = null;
+    lastAnchorPos = null;
+    _dropOccurred = false;
     if (blockPlaceholder.parentNode) blockPlaceholder.remove();
     document.querySelectorAll('.event-body.drag-active').forEach(b => b.classList.remove('drag-active'));
+    if (_pageCanvas) _pageCanvas.classList.remove('drag-in-progress');
   }
 };

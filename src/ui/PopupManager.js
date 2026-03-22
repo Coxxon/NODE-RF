@@ -198,9 +198,16 @@ export function openNoteColorPicker(e, anchor, onSave) {
       if (anchor._lastRange) {
         const sel = window.getSelection();
         sel.removeAllRanges();
-        sel.addRange(anchor._lastRange);
+        // Restore saved range but trim trailing spaces first
+        const range = anchor._lastRange.cloneRange();
+        let { endContainer, endOffset } = range;
+        if (endContainer.nodeType === Node.TEXT_NODE) {
+          while (endOffset > 0 && endContainer.textContent[endOffset - 1] === ' ') endOffset--;
+          if (endOffset !== range.endOffset) range.setEnd(endContainer, endOffset);
+        }
+        sel.addRange(range);
       }
-      
+
       document.execCommand('styleWithCSS', false, true);
       document.execCommand('foreColor', false, finalColor);
       

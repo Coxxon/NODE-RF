@@ -718,14 +718,7 @@ function handleDragStart(e) {
   
   dragPlaceholder = document.createElement('li');
   dragPlaceholder.className = 'zone-drag-placeholder';
-  dragPlaceholder.style.cssText = `
-    height: 2px;
-    background: var(--primary);
-    border-radius: 2px;
-    margin: 0 12px;
-    pointer-events: none;
-    list-style: none;
-  `;
+  dragPlaceholder.className = 'zone-drag-placeholder';
   
   setTimeout(() => this.classList.add('dragging'), 0);
 }

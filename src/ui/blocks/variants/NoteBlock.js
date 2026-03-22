@@ -3,6 +3,29 @@
  */
 import { sharedState } from '../../../core/StateProvider.js';
 
+/**
+ * Trims trailing whitespace from the current selection so that
+ * execCommand doesn't consume the space after the formatted word.
+ */
+function _trimSelectionTrailingSpaces() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (range.collapsed) return;
+  let { endContainer, endOffset } = range;
+  if (endContainer.nodeType === Node.TEXT_NODE) {
+    while (endOffset > 0 && endContainer.textContent[endOffset - 1] === ' ') {
+      endOffset--;
+    }
+    if (endOffset !== range.endOffset) {
+      const trimmed = range.cloneRange();
+      trimmed.setEnd(endContainer, endOffset);
+      sel.removeAllRanges();
+      sel.addRange(trimmed);
+    }
+  }
+}
+
 export function buildNoteBody(block, evt, callbacks = {}) {
   const editor = document.createElement('div');
   editor.className = 'block-note-editable';
@@ -35,6 +58,8 @@ export function buildNoteToolbar(block, evt, callbacks = {}) {
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // Trim trailing whitespace from selection so spaces are not consumed by the format span
+      _trimSelectionTrailingSpaces();
       if (window.sharedState && window.sharedState.recordSnapshot) window.sharedState.recordSnapshot();
       document.execCommand(tool.cmd, false, null);
     });

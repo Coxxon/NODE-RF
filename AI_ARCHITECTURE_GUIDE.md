@@ -66,11 +66,14 @@ This document defines the structural rules and module boundaries for the **NODE 
 1. **Zero DOM Reference**: Keyboard shortcuts (`Ctrl + 1`, etc.) must **NEVER** use `querySelectorAll` or DOM order to find targets. They are strictly mapped by mapping physical keys (`e.code`) to `Store` indices (`pages[digit - 2]`).
 2. **Direct Callbacks**: Shortcuts should trigger the underlying logic (`switchView(id)`) directly via stored function references in `TabManager`, bypassing UI event simulations where possible.
 
-### **Live Visual Feedback**
-- For high-frequency interactive updates (e.g., Color Picker), use **Direct Style Injection** (`element.style.borderColor = ...`) rather than a full `renderPageCanvas()` to ensure sub-millisecond responsiveness.
+### **Live Visual Feedback & Persistence**
+1. **Autosave Indicator**: The `Store.save()` method dispatches `app:saving` and `app:saved`. The #saveIndicator UI in the toolbar must listen for these to provide async feedback. Always hide this indicator in `@media print`.
+2. **Per-Page Lock States**: Lock status is NO LONGER global. Use `Store.data.pageLockStates[pageId]` to persist independent UI states. The Lock button visibility and state application are managed during `switchView()`.
+3. **Unified Drag & Drop**: All drag-and-drop placeholders (Tabs, Zones, Events, Blocks) must use the **2px horizontal line** style (`var(--primary)` with `box-shadow: 0 0 10px var(--primary-low-alpha)`). JS must not override the placeholder height.
 
-### **Template & Quick-Access UI**
-- **Full-Card Render**: The `TemplateDrawer.buildTemplatePreview(tpl)` method must be used whenever a template needs a visual representation (drawer, hover popovers). It creates a "Source of Truth" card (Header + Wireframe).
+### **Layout Precision**
+- **Section Titles**: The `.block-separator` class must use `width: calc(100% + 20px)` and negative margins to touch event borders. It forces a 100% span in both grid and flex contexts (`grid-column: 1 / -1`, `flex-basis: 100%`).
+- **Template & Quick-Access UI**: The `TemplateDrawer.buildTemplatePreview(tpl)` method must be used whenever a template needs a visual representation (drawer, hover popovers). It creates a "Source of Truth" card (Header + Wireframe).
 - **Popover Behavior**: Quick-access previews must use `var(--bg-surface)` (opaque) and dynamic width calculation to support different template dimensions (Standard vs Zone RF).
 
 ---
@@ -84,6 +87,7 @@ If `Module A` needs `Module B` and vice-versa:
 
 ---
 
-## 7. Distribution & Infrastructure
+## 7. Distribution & Versioning
+- **Versioning (V1.4.5-1+)**: The version format follows `[Project].[Major].[Minor]-[Alpha/Release]`. (e.g., `1.4.5-1` = Project 1, Major Impl 4, Minor Impl 5, Alpha 1).
 - **Windows Installer**: Use `electron-builder` with an `nsis` target. Confirmed versioning and `appId` are set in `package.json`.
 - **GitHub Backup**: Always confirm that `release-builds/` and binary artifacts are excluded from history via `.gitignore` to avoid the 100MB file size limit. Reset history if necessary before pushing a fresh backup.

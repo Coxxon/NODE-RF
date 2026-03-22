@@ -13,7 +13,7 @@ export function buildFileBlockBody(block, evt, callbacks) {
       const empty = document.createElement('div');
       empty.className = 'file-block-empty';
       empty.style.cssText = 'padding:16px; text-align:center; color:var(--text-muted); font-size:0.75rem; border:1px dashed rgba(255,255,255,0.05); border-radius:8px;';
-      empty.textContent = 'No files attached. Use the "+" button in the header to import.';
+      empty.innerHTML = `No files attached. Use the <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin:0 2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> button in the header to import.`;
       container.appendChild(empty);
       return;
     }

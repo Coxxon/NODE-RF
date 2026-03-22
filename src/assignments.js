@@ -13,6 +13,7 @@ import { BlockInteractions } from './ui/interactions/BlockInteractions.js';
 import { LayoutEngine } from './ui/LayoutEngine.js';
 import { TabManager } from './ui/TabManager.js';
 import { TemplateDrawer } from './ui/TemplateDrawer.js';
+import { TimelinePanel } from './ui/TimelinePanel.js';
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -102,6 +103,11 @@ export function switchView(view /* 'inventory' | pageId */) {
     if (window.applyPageLockState) window.applyPageLockState(view);
   }
 
+  // Timeline toggle button visibility
+  const btnTimeline = document.getElementById('btnToggleTimeline');
+  if (btnTimeline) btnTimeline.style.display = isInventory ? 'none' : 'flex';
+  if (isInventory) TimelinePanel.close();
+
   if (!isInventory) {
     Store.setCurrentPageId(view);
     if (sharedState.isEditMode) {
@@ -110,6 +116,8 @@ export function switchView(view /* 'inventory' | pageId */) {
     }
     updateToolbarZoneUI();
     renderPageCanvas();
+    // If timeline is open, re-render it for the new page
+    TimelinePanel.render();
   } else {
     Store.setCurrentPageId(null);
   }
@@ -185,7 +193,7 @@ if (tabInventory) tabInventory.addEventListener('click', () => switchView('inven
 if (btnAddPage) {
   btnAddPage.addEventListener('click', () => {
     if (sharedState.recordSnapshot) sharedState.recordSnapshot();
-    const page = { id: generateUID(), label: `Page ${Store.getPages().length + 1}`, rfZone: '' };
+    const page = { id: generateUID(), label: `Page ${Store.getPages().length + 1}`, rfZone: '', date: new Date().toISOString().slice(0, 10) };
     Store.getPages().push(page);
     Store.setEvents(page.id, []);
     renderPageTabs();
@@ -209,8 +217,12 @@ export function renderPageCanvas() {
     deleteEvent,
     duplicateEvent,
     saveAsTemplate,
-    renderPageCanvas
+    renderPageCanvas,
+    createChildEvent,
+    deleteChildEvent,
   });
+  // Keep timeline in sync after every canvas render
+  EventHub.emit('scheduleChanged');
 }
 
 // ─── Event Management ─────────────────────────────────────────────────────────
@@ -233,6 +245,16 @@ function createEvent(templateOrId = null) {
       newB.id = generateUID();
       if (newB.rows) newB.rows.forEach(r => r.id = generateUID());
       if (newB.items) newB.items.forEach(i => i.id = generateUID());
+      // Templates are content-free: sanitize in case old templates still carry names/durations
+      if (newB.type === 'sequence') {
+        newB.name = '';
+        newB.estimatedDuration = 30;
+        if (newB.blocks) newB.blocks.forEach(sb => {
+          sb.id = generateUID();
+          if (sb.rows) sb.rows.forEach(r => r.id = generateUID());
+          if (sb.items) sb.items.forEach(i => i.id = generateUID());
+        });
+      }
       return newB;
     });
   };
@@ -244,7 +266,7 @@ function createEvent(templateOrId = null) {
 
   const evt = {
     id: generateUID(),
-    name: template ? template.name : '',
+    name: '',  // templates carry no personal names — user fills in after creation
     startTime: '',
     endTime: '',
     span: template ? (template.span || 1) : 1,
@@ -276,6 +298,14 @@ function duplicateEvent(evt) {
       b.id = generateUID();
       if (b.rows) b.rows.forEach(r => r.id = generateUID());
       if (b.items) b.items.forEach(i => i.id = generateUID());
+      // Re-ID nested blocks inside sequence blocks
+      if (b.type === 'sequence' && b.blocks) {
+        b.blocks.forEach(sb => {
+          sb.id = generateUID();
+          if (sb.rows) sb.rows.forEach(r => r.id = generateUID());
+          if (sb.items) sb.items.forEach(i => i.id = generateUID());
+        });
+      }
     });
   }
   const cid = Store.getCurrentPageId();
@@ -289,6 +319,37 @@ function duplicateEvent(evt) {
   saveAssignments();
   renderPageCanvas();
   PopupManager.showToast("Event duplicated!");
+}
+
+function createChildEvent(parentEvtId) {
+  if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+  const cid = Store.getCurrentPageId();
+  const pageEvts = Store.getEvents(cid);
+  const parent = pageEvts.find(e => e.id === parentEvtId);
+  if (!parent) return;
+  if (!parent.blocks) parent.blocks = [];
+  const seq = {
+    id: generateUID(),
+    type: 'sequence',
+    name: '',
+    estimatedDuration: 30,
+    collapsed: false,
+    blocks: []
+  };
+  parent.blocks.push(seq);
+  saveAssignments();
+  renderPageCanvas();
+}
+
+function deleteChildEvent(parentEvtId, childId) {
+  if (sharedState.recordSnapshot) sharedState.recordSnapshot();
+  const cid = Store.getCurrentPageId();
+  const pageEvts = Store.getEvents(cid);
+  const parent = pageEvts.find(e => e.id === parentEvtId);
+  if (!parent) return;
+  parent.blocks = (parent.blocks || []).filter(b => b.id !== childId);
+  saveAssignments();
+  renderPageCanvas();
 }
 
 function saveAsTemplate(evt) {
@@ -336,15 +397,31 @@ function saveAsTemplate(evt) {
         structuralBlock.items = (b.items || []).map(() => ({
           id: generateUID(), label: '', checked: false
         }));
+      } else if (b.type === 'sequence') {
+        structuralBlock.name = '';                // strip personal name
+        structuralBlock.estimatedDuration = 30;   // always default — no personal data
+        structuralBlock.blocks = (b.blocks || []).map(sub => {
+          const sSub = { id: generateUID(), type: sub.type,
+            ...(sub.span !== undefined && { span: sub.span }),
+            ...(sub.side !== undefined && { side: sub.side }) };
+          if (sub.type === 'assignment') {
+            sSub.rows = (sub.rows || []).map(() => ({ id: generateUID(), personName: '', deviceLabel: '', rfChannelId: null }));
+          } else if (sub.type === 'note') {
+            sSub.content = '';
+          } else if (sub.type === 'checklist') {
+            sSub.items = (sub.items || []).map(() => ({ id: generateUID(), label: '', checked: false }));
+          }
+          return sSub;
+        });
       }
       return structuralBlock;
     });
 
-    const templateData = { 
+    const templateData = {
       id: `tpl_${Date.now()}`,
-      name: n, 
-      span: evt.span || 1, 
-      blocks: templateBlocks 
+      name: n,
+      span: evt.span || 1,
+      blocks: templateBlocks
     };
 
     // 1. Persist to disk via IPC (survives restarts)
@@ -372,8 +449,14 @@ export async function initAssignments() {
 
   EventInteractions.init(pageCanvas);
   BlockInteractions.init(pageCanvas);
+  TimelinePanel.init(saveAssignments, renderPageCanvas);
 
   EventHub.on('requestRender', () => {
     renderPageCanvas();
   });
+
+  // Fix 8: Open timeline by default when starting on a page
+  if (Store.getCurrentPageId()) {
+    TimelinePanel.open();
+  }
 }
