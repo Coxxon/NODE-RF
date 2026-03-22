@@ -126,6 +126,11 @@
   border-radius: 0 !important;
   margin: 0 -10px !important; /* Zero vertical margin, relying on 10px container gap */
   padding: 4px 14px !important;
+  box-sizing: border-box !important;
+  width: calc(100% + 20px) !important; /* Forces full width by compensating for -10px margins */
+  grid-column: 1 / -1 !important;
+  flex-basis: 100% !important;
+  align-self: stretch !important;
 }
 
 /* Close the gap between consecutive section titles or at event boundaries */
