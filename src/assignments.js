@@ -92,7 +92,7 @@ export function switchView(view /* 'inventory' | pageId */) {
   
   if (searchBox) searchBox.style.display = isInventory ? 'flex' : 'none';
   if (btnZone) btnZone.style.display = isInventory ? 'none' : 'flex';
-  if (btnEdit) btnEdit.style.display = isInventory ? 'flex' : 'none';
+  if (btnEdit) btnEdit.style.display = isInventory ? 'none' : 'flex';
 
   if (!isInventory) {
     Store.setCurrentPageId(view);
