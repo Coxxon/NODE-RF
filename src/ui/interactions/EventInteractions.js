@@ -130,7 +130,7 @@ export const EventInteractions = {
       
       children.forEach(child => {
         let eid = null;
-        if (child.classList.contains('event-block')) {
+        if (child.classList.contains('event-block') && !child.classList.contains('dragging')) {
           eid = child.dataset.eventId;
         } else if (child === eventPlaceholder) {
           eid = draggedEvt.id;

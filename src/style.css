@@ -1237,17 +1237,7 @@ body.edit-mode #btnOpenMinimap {
   transition: box-shadow 0.2s, grid-column 0.1s, transform 0.2s;
 }
 .page-canvas:has(.dragging) .event-block { transition: none !important; }
-.event-block.dragging { visibility: hidden; pointer-events: none; position: relative; }
-/* Overlay placeholder when inside a dragging element */
-.event-block.dragging .event-placeholder {
-  visibility: visible;
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  width: auto !important;
-  height: auto !important;
-  margin: 0;
-}
+.event-block.dragging { display: none; pointer-events: none; }
 .event-placeholder {
   background: rgba(59, 130, 246, 0.05);
   border: 2px dashed var(--primary);
@@ -1438,17 +1428,7 @@ body.edit-mode #btnOpenMinimap {
   border-bottom: none;
 }
 .event-body:has(.dragging) .data-block { transition: none !important; }
-.data-block.dragging { visibility: hidden; pointer-events: none; position: relative; }
-/* Overlay placeholder for blocks */
-.data-block.dragging .block-placeholder {
-  visibility: visible;
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  width: auto !important;
-  height: auto !important;
-  margin: 0;
-}
+.data-block.dragging { display: none; pointer-events: none; }
 .block-placeholder {
   background: rgba(59, 130, 246, 0.05);
   border: 2px dashed var(--primary);
