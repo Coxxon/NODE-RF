@@ -95,6 +95,31 @@ html, body { overflow: overlay; }
 .logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -1px; }
 .logo-sub { color: var(--primary); font-weight: 400; font-size: 1rem; margin-left: 2px; }
 
+.save-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: transparent;
+  margin-left: 12px;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+.save-indicator.saving {
+  background-color: #94a3b8;
+  box-shadow: 0 0 8px #94a3b8;
+  animation: pulse-save 1s infinite;
+}
+.save-indicator.saved {
+  background-color: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+@keyframes pulse-save {
+  0% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0.4; transform: scale(0.8); }
+}
+
 /* Integrated Column Bar */
 .column-bar-integrated {
   display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
@@ -756,7 +781,7 @@ body.edit-mode #btnOpenMinimap {
 /* FORCED LIGHT EXPORT FOR PDF */
 @media print {
   body { background: white !important; color: #111 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .toolbar, .column-bar-integrated, .add-row-trigger, .drag-drop-overlay, .col-Status, #viewTabBar, .print-footer, .edit-only-action { display: none !important; }
+  .toolbar, .column-bar-integrated, .add-row-trigger, .drag-drop-overlay, .col-Status, #viewTabBar, .print-footer, .edit-only-action, .save-indicator { display: none !important; }
   main { padding: 0 !important; max-width: 100%; overflow: visible !important; }
   
   .zone-container { 

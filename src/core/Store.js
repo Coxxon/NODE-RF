@@ -8,6 +8,7 @@ export const Store = {
     assignPages: [],
     assignEvents: {},
     assignTemplates: [],
+    pageLockStates: {}, // NEW: Per-page lock states { pageId: boolean }
     lastView: null
   },
   past: [],
@@ -98,7 +99,10 @@ export const Store = {
   },
 
   save(newData) {
-    if (this.isRestoring) return; // Mission: Bloquer tout snapshot pendant la restauration
+    if (this.isRestoring) return; 
+
+    // Visual feedback trigger
+    window.dispatchEvent(new CustomEvent('app:saving'));
 
     // 1. Snapshot SYNCHRONE avec comparaison métier et Throttle (800ms) ou Force (Espace)
     const stateToCompare = newData !== undefined ? newData : this.data;
@@ -139,6 +143,11 @@ export const Store = {
         if (sharedState.requestAutosave) sharedState.requestAutosave();
       }
     } catch(e) { console.warn('Store save failed', e); }
+    
+    // Notify end of save (approximate for localstorage, but good for feedback)
+    setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('app:saved'));
+    }, 300);
   },
 
   _persistOnly(data) {

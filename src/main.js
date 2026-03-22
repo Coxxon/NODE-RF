@@ -72,6 +72,7 @@ let customZoneNames = {};
 let mainZoneOrder = [];
 let zoneColors = {}; 
 let currentCsvFilePath = null; // Absolute path of last loaded CSV (Electron only)
+let pageLockStates = {}; // { pageId: boolean }
 
 // ─── SEARCH (Fuse.js) ────────────────────────────────────────────────────────
 const FUSE_BASE_OPTIONS = {
@@ -178,6 +179,7 @@ function buildAutosavePayload() {
     customZoneNames,
     mainZoneOrder,
     zoneColors,
+    pageLockStates, // NEW
     assignments: getAssignmentState(),
     savedAt: new Date().toISOString()
   };
@@ -214,6 +216,7 @@ function syncStateFromStore(data) {
     customZoneNames = data.customZoneNames || {};
     mainZoneOrder   = data.mainZoneOrder   || [];
     zoneColors      = data.zoneColors      || {};
+    pageLockStates  = data.pageLockStates  || {};
 
     if (data.assignments) {
       setAssignmentState(data.assignments);
@@ -261,6 +264,7 @@ function restoreAutosave() {
     customZoneNames = data.customZoneNames || {};
     mainZoneOrder  = data.mainZoneOrder  || [];
     zoneColors     = data.zoneColors     || {};
+    pageLockStates = data.pageLockStates || {};
 
     if (data.assignments) {
       setAssignmentState(data.assignments);
@@ -912,10 +916,49 @@ updateLockUI();
 if (btnGlobalLock) {
   btnGlobalLock.addEventListener('click', () => {
     isLocked = !isLocked;
-    localStorage.setItem('node_rf_locked', String(isLocked));
+    const currentView = document.getElementById('inventoryView')?.classList.contains('active') ? 'inventory' : Store.getCurrentPageId();
+    if (currentView && currentView !== 'inventory') {
+        pageLockStates[currentView] = isLocked;
+    } else {
+        localStorage.setItem('node_rf_locked', String(isLocked));
+    }
     updateLockUI();
+    autosave();
   });
 }
+
+/** 
+ * Public accessor for assignments.js to apply lock state when switching pages 
+ */
+window.applyPageLockState = function(viewId) {
+  if (viewId === 'inventory') {
+      isLocked = localStorage.getItem('node_rf_locked') === 'true';
+  } else {
+      isLocked = pageLockStates[viewId] || false;
+  }
+  updateLockUI();
+};
+
+// ─── SAVE INDICATOR LISTENERS ────────────────────────────────────────────────
+window.addEventListener('app:saving', () => {
+  const indicator = document.getElementById('saveIndicator');
+  if (indicator) {
+    indicator.classList.remove('saved');
+    indicator.classList.add('saving');
+  }
+});
+
+window.addEventListener('app:saved', () => {
+  const indicator = document.getElementById('saveIndicator');
+  if (indicator) {
+    indicator.classList.remove('saving');
+    indicator.classList.add('saved');
+    // Return to neutral after 2s
+    setTimeout(() => {
+        indicator.classList.remove('saved');
+    }, 2000);
+  }
+});
 
 // Share the function with assignments.js to avoid circular imports
 sharedState.applyEditMode = applyEditMode;

@@ -92,7 +92,15 @@ export function switchView(view /* 'inventory' | pageId */) {
   
   if (searchBox) searchBox.style.display = isInventory ? 'flex' : 'none';
   if (btnZone) btnZone.style.display = isInventory ? 'none' : 'flex';
-  if (btnEdit) btnEdit.style.display = isInventory ? 'none' : 'flex';
+  if (btnEdit) btnEdit.style.display = isInventory ? 'flex' : 'none';
+
+  // Global Lock Visibility & State
+  const btnLock = document.getElementById('btnGlobalLock');
+  if (btnLock) {
+    btnLock.style.display = isInventory ? 'none' : 'flex';
+    // Apply the specific lock state for this view
+    if (window.applyPageLockState) window.applyPageLockState(view);
+  }
 
   if (!isInventory) {
     Store.setCurrentPageId(view);
