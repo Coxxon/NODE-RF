@@ -9,6 +9,7 @@ export const Store = {
     assignEvents: {},
     assignTemplates: [],
     pageLockStates: {}, // NEW: Per-page lock states { pageId: boolean }
+    rfTools: { calculations: [] }, // NEW: RF Tools module data
     lastView: null
   },
   past: [],
@@ -122,6 +123,7 @@ export const Store = {
       assignPages: Store.getPages(), 
       assignEvents: Store.getEvents(), 
       assignTemplates: Store.getTemplates(), 
+      rfTools: Store.data.rfTools || { calculations: [] },
       lastView 
     };
   },
@@ -236,6 +238,7 @@ export const Store = {
       this.data.assignPages     = data.assignPages || [];
       this.data.assignEvents    = data.assignEvents || {};
       this.data.assignTemplates = data.assignTemplates || [];
+      this.data.rfTools         = data.rfTools || { calculations: [] };
       this.data.lastView        = data.lastView || null;
       this.migrate();
       

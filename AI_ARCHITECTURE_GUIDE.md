@@ -88,6 +88,6 @@ If `Module A` needs `Module B` and vice-versa:
 ---
 
 ## 7. Distribution & Versioning
-- **Versioning (V1.4.5-1+)**: The version format follows `[Project].[Major].[Minor]-[Alpha/Release]`. (e.g., `1.4.5-1` = Project 1, Major Impl 4, Minor Impl 5, Alpha 1).
+- **Versioning (V1.4.5+)**: The version format follows `[Project].[Major].[Minor]`. (e.g., `1.4.5` = Project 1, Major Impl 4, Minor Impl 5). High stability release.
 - **Windows Installer**: Use `electron-builder` with an `nsis` target. Confirmed versioning and `appId` are set in `package.json`.
 - **GitHub Backup**: Always confirm that `release-builds/` and binary artifacts are excluded from history via `.gitignore` to avoid the 100MB file size limit. Reset history if necessary before pushing a fresh backup.

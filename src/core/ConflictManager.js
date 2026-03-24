@@ -66,6 +66,15 @@ export const ConflictManager = {
       for (let m = 0; m < rowsA.length; m++) {
         for (let n = m + 1; n < rowsA.length; n++) {
           const ra = rowsA[m], rb = rowsA[n];
+          
+          // Refined Temporal Isolation:
+          // Skip if they are in different sequences (sequential blocks).
+          // Both must be either top-level (null) or in the same sequence.
+          // IF one is top-level (Global for event) it conflicts with everything.
+          const isSameSequence = ra.sequenceId === rb.sequenceId;
+          const isAtLeastOneGlobal = ra.sequenceId === null || rb.sequenceId === null;
+          if (!isSameSequence && !isAtLeastOneGlobal) continue;
+
           const isFreq = ra.rfId && rb.rfId && ra.rfId === rb.rfId;
           const isDev = ra.device && rb.device && ra.device === rb.device;
           
@@ -262,10 +271,10 @@ export const ConflictManager = {
     return as < be && ae > bs;
   },
 
-  getEventRows(e) {
+  getEventRows(container, sequenceId = null) {
     let rows = [];
-    if (!e || !e.blocks) return rows;
-    e.blocks.forEach(bl => {
+    if (!container || !container.blocks) return rows;
+    container.blocks.forEach(bl => {
       if (bl.type === 'assignment') {
         bl.rows.forEach(row => {
           rows.push({
@@ -274,9 +283,13 @@ export const ConflictManager = {
             device: (row.deviceLabel || '').trim().toLowerCase(),
             originalDevice: row.deviceLabel,
             rfId: row.rfChannelId,
-            rfFreq: row.rfChannelId ? (getRFInfo(row.rfChannelId)?.freq || 'Unknown') : null
+            rfFreq: row.rfChannelId ? (getRFInfo(row.rfChannelId)?.freq || 'Unknown') : null,
+            sequenceId: sequenceId
           });
         });
+      } else if (bl.type === 'sequence' && bl.blocks) {
+        // Recursive call with current sequence ID
+        rows = rows.concat(this.getEventRows(bl, bl.id));
       }
     });
     return rows;

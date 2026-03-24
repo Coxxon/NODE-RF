@@ -1071,6 +1071,23 @@ body.edit-mode #btnOpenMinimap {
 .tab-divider { width: 1px; height: 20px; background: var(--border); margin: 0 8px; flex-shrink: 0; }
 .pages-tab-group { display: flex; align-items: center; gap: 2px; }
 
+/* Fixed RF Tools tab to the far right */
+.tab-rf-tools {
+  margin-left: auto;
+  border-left: 2px solid var(--border-color);
+  background: var(--bg-surface-elevated) !important;
+  color: var(--text-dim) !important;
+}
+.tab-rf-tools.active {
+  background: var(--bg-surface) !important;
+  color: var(--primary) !important;
+  border-bottom: 2px solid var(--primary);
+}
+.tab-rf-tools:hover:not(.active) {
+  background: var(--bg-event) !important;
+  color: var(--text-main) !important;
+}
+
 /* Page tab with close button */
 .page-tab-wrapper { display: flex; align-items: center; position: relative; }
 .page-tab-wrapper .view-tab { padding-right: 28px; }
@@ -2996,5 +3013,146 @@ body.is-locked .event-block:hover .event-resizer-btn {
 #printPreviewArea .a4-sheet .hide-notes .col-notes,
 #printPreviewArea .a4-sheet .hide-names .col-name {
   display: none;
+}
+
+/* ─── RF Tools Industrial Workspace ───────────────────────────────────────── */
+.rf-tools-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.rf-tools-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.rf-tools-zone-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rf-tools-zone-header {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.power-balance-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 350px 1fr 200px;
+  gap: 32px;
+  position: relative;
+}
+
+.power-balance-card:hover {
+  border-color: var(--primary-low-alpha);
+}
+
+.pb-schematic-area {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 4px;
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pb-controls-area {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.pb-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pb-field-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pb-input {
+  background: var(--bg-body);
+  border: 1.5px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.pb-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.pb-results-area {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  border-left: 1px solid var(--border-color);
+  padding-left: 24px;
+}
+
+.pb-result-value {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.pb-result-unit {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-top: -4px;
+}
+
+.btn-pb-add {
+  align-self: flex-start;
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-pb-add:hover {
+  background: var(--bg-event);
+  border-color: var(--primary);
 }
 
