@@ -180,6 +180,7 @@ function buildAutosavePayload() {
     mainZoneOrder,
     zoneColors,
     pageLockStates, // NEW
+    rfTools: Store.data.rfTools || { calculations: [] },
     assignments: getAssignmentState(),
     savedAt: new Date().toISOString()
   };

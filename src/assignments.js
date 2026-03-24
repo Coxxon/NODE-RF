@@ -14,6 +14,7 @@ import { LayoutEngine } from './ui/LayoutEngine.js';
 import { TabManager } from './ui/TabManager.js';
 import { TemplateDrawer } from './ui/TemplateDrawer.js';
 import { TimelinePanel } from './ui/TimelinePanel.js';
+import { RFToolsView } from './ui/RFToolsView.js';
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -75,6 +76,10 @@ export function switchView(view /* 'inventory' | pageId */) {
   const tabInventory = document.getElementById('tabInventory');
   const inventoryView = document.getElementById('inventoryView');
   const assignmentView = document.getElementById('assignmentView');
+  const rfToolsView = document.getElementById('rfToolsView');
+  const tabRFTools = document.getElementById('tabRFTools');
+
+  const isRFTools = view === 'rf-tools';
   
   // Update active state on static Inventory tab
   if (tabInventory) tabInventory.classList.toggle('active', isInventory);
@@ -84,7 +89,9 @@ export function switchView(view /* 'inventory' | pageId */) {
   });
 
   if (inventoryView) inventoryView.classList.toggle('active', isInventory);
-  if (assignmentView) assignmentView.classList.toggle('active', !isInventory);
+  if (assignmentView) assignmentView.classList.toggle('active', !isInventory && !isRFTools);
+  if (rfToolsView) rfToolsView.classList.toggle('active', isRFTools);
+  if (tabRFTools) tabRFTools.classList.toggle('active', isRFTools);
   
   // Toolbar management
   const searchBox = document.getElementById('searchBoxContainer');
@@ -105,10 +112,13 @@ export function switchView(view /* 'inventory' | pageId */) {
 
   // Timeline toggle button visibility
   const btnTimeline = document.getElementById('btnToggleTimeline');
-  if (btnTimeline) btnTimeline.style.display = isInventory ? 'none' : 'flex';
-  if (isInventory) TimelinePanel.close();
+  if (btnTimeline) btnTimeline.style.display = (isInventory || isRFTools) ? 'none' : 'flex';
+  if (isInventory || isRFTools) TimelinePanel.close();
 
-  if (!isInventory) {
+  if (isRFTools) {
+    Store.setLastView('rf-tools');
+    RFToolsView.render(document.getElementById('rfToolsContent'), saveAssignments);
+  } else if (!isInventory) {
     Store.setCurrentPageId(view);
     if (sharedState.isEditMode) {
       sharedState.isEditMode = false;
@@ -189,6 +199,9 @@ export function renderPageTabs() {
 }
 
 if (tabInventory) tabInventory.addEventListener('click', () => switchView('inventory'));
+
+const tabRFTools = document.getElementById('tabRFTools');
+if (tabRFTools) tabRFTools.addEventListener('click', () => switchView('rf-tools'));
 
 if (btnAddPage) {
   btnAddPage.addEventListener('click', () => {

@@ -3156,3 +3156,18 @@ body.is-locked .event-block:hover .event-resizer-btn {
   border-color: var(--primary);
 }
 
+.btn-pb-delete {
+  transition: color 0.2s, transform 0.2s;
+}
+.btn-pb-delete:hover {
+  color: #ef4444 !important;
+  transform: scale(1.1);
+}
+
+/* Industrial Typography */
+.rf-tools-container .pb-input,
+.rf-tools-container .pb-result-value,
+.rf-tools-container .sketch-text {
+  font-family: 'Roboto Mono', 'Courier New', monospace;
+}
+
